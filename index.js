@@ -714,16 +714,14 @@ const addLiquidity = async (wallet, provider, index, jwt) => {
 };
 
 const getUserDelay = () => {
-  let delayMinutes = process.env.DELAY_MINUTES;
-  if (!delayMinutes) {
-    delayMinutes = prompt('Enter delay between cycles in minutes (e.g., 30): ');
+  // Always use environment variable in CI
+  if (process.env.CI || !process.stdout.isTTY) {
+    const minutes = parseInt(process.env.DELAY_MINUTES || '30', 10);
+    return isNaN(minutes) ? 30 : minutes;
   }
-  const minutes = parseInt(delayMinutes, 10);
-  if (isNaN(minutes) || minutes <= 0) {
-    logger.error('Invalid delay input, using default 30 minutes');
-    return 30;
-  }
-  return minutes;
+
+  // Only use prompt in interactive terminals
+  
 };
 
 const countdown = async (minutes) => {
