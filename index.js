@@ -131,8 +131,8 @@ const pairOptions = [
 ];
 
 const lpOptions = [
-  { id: 1, token0: 'WPHRS', token1: 'USDC', amount0: 0.00001, amount1: 0.00001, fee: 3000 },
-  { id: 2, token0: 'WPHRS', token1: 'USDT', amount0: 0.00001, amount1: 0.00001, fee: 3000 },
+  { id: 1, token0: 'WPHRS', token1: 'USDC', amount0: 0.0001, amount1: 0.0001, fee: 3000 },
+  { id: 2, token0: 'WPHRS', token1: 'USDT', amount0: 0.0001, amount1: 0.0001, fee: 3000 },
 ];
 
 const waitForTransactionWithRetry = async (provider, txHash, maxRetries = 5, baseDelayMs = 1000) => {
