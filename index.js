@@ -143,7 +143,7 @@ const waitForTransactionWithRetry = async (provider, txHash, maxRetries = 5, bas
       if (receipt) {
         return receipt;
       }
-      logger.warn(`Transaction receipt not found for ${txHash, retrying (${retries + 1}/${maxRetries})...`);
+      logger.warn(`Transaction receipt not found for ${txHash}, retrying (${retries + 1}/${maxRetries})...`);
       await new Promise(resolve => setTimeout(resolve, baseDelayMs * Math.pow(2, retries)));
       retries++;
     } catch (error) {
