@@ -717,7 +717,7 @@ const getUserDelay = () => {
   // Always use environment variable in CI
   if (process.env.CI || !process.stdout.isTTY) {
     const minutes = parseInt(process.env.DELAY_MINUTES || '30', 10);
-    return isNaN(minutes) ? 30 : minutes;
+    return isNaN(minutes) ? 1 : minutes;
   }
 
   // Only use prompt in interactive terminals
