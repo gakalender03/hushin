@@ -1,0 +1,31 @@
+name: Run Node.js Script from Private Repo
+
+on:
+  push:
+    branches:
+      - main  # Trigger this action on push to the public repo's main branch
+  workflow_dispatch:
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout public repo
+      uses: actions/checkout@v3  # This checks out the public repo
+
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'  # Set your required Node.js version
+
+    - name: Install dependencies (if any)
+      run: npm install @cosmjs/proto-signing
+  # Install dependencies if needed
+
+    - name: Run Node.js script from private repo
+      env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS }}
+      run: node index.js  # Run the script from the private repo
+      continue-on-error: true
