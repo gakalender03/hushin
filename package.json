@@ -1,7 +1,7 @@
 {
   "name": "pharos-testnet-bot",
   "version": "1.0.0",
-  "description": "Automated bot for interacting with the Pharos Testnet",
+  "description": "Testnet",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
