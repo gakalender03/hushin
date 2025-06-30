@@ -1,11 +1,10 @@
 require('dotenv').config();
 const { ethers } = require('ethers');
-const randomUseragent = require('random-useragent');
 const axios = require('axios');
+const randomUseragent = require('random-useragent');
 
 const colors = {
   reset: '\x1b[0m',
-  cyan: '\x1b[36m',
   green: '\x1b[32m',
   red: '\x1b[31m',
   yellow: '\x1b[33m',
@@ -43,11 +42,11 @@ const performCheckIn = async (wallet) => {
 
     if (loginData.code !== 0 || !loginData.data.jwt) {
       logger.error(`Login failed: ${loginData.msg || 'Unknown error'}`);
-      return;
+      return null;
     }
 
     const jwt = loginData.data.jwt;
-    logger.info(`Login successful, JWT: ${jwt}`);
+    logger.info(`Login successful`);
 
     const checkInUrl = `https://api.pharosnetwork.xyz/sign/in?address=${wallet.address}`;
     const checkInHeaders = { ...headers, authorization: `Bearer ${jwt}` };
@@ -56,12 +55,41 @@ const performCheckIn = async (wallet) => {
     const checkInData = checkInResponse.data;
 
     if (checkInData.code === 0) {
-      logger.info(`Check-in successful for ${wallet.address}`);
+      logger.info(`Check-in successful`);
     } else {
       logger.error(`Check-in failed: ${checkInData.msg || 'Unknown error'}`);
     }
+
+    return jwt;
   } catch (error) {
     logger.error(`Check-in error for ${wallet.address}: ${error.message}`);
+    return null;
+  }
+};
+
+const getUserInfo = async (wallet, jwt) => {
+  try {
+    logger.step(`Fetching user info for: ${wallet.address}`);
+    const profileUrl = `https://api.pharosnetwork.xyz/user/profile?address=${wallet.address}`;
+    const headers = {
+      accept: "application/json",
+      authorization: `Bearer ${jwt}`,
+      "User-Agent": randomUseragent.getRandom(),
+    };
+
+    const response = await axios.get(profileUrl, { headers });
+    const data = response.data;
+
+    if (data.code === 0 && data.data.user_info) {
+      const user = data.data.user_info;
+      logger.info(`User ID: ${user.ID}`);
+      logger.info(`Task Points: ${user.TaskPoints}`);
+      logger.info(`Total Points: ${user.TotalPoints}`);
+    } else {
+      logger.error(`Failed to fetch user info: ${data.msg || 'Unknown error'}`);
+    }
+  } catch (error) {
+    logger.error(`Failed to get user info: ${error.message}`);
   }
 };
 
@@ -74,7 +102,10 @@ const main = async () => {
   for (const pk of PRIVATE_KEYS) {
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     const wallet = new ethers.Wallet(pk, provider);
-    await performCheckIn(wallet);
+    const jwt = await performCheckIn(wallet);
+    if (jwt) {
+      await getUserInfo(wallet, jwt);
+    }
   }
 };
 
