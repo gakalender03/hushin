@@ -135,6 +135,7 @@ const main = async () => {
     if (jwt) {
       await getUserInfo(wallet, jwt);
     }
+    await new Promise(res => setTimeout(res, 1000));
   }
 };
 
