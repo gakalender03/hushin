@@ -71,9 +71,20 @@ const getUserInfo = async (wallet, jwt) => {
   try {
     logger.step(`Fetching user info for: ${wallet.address}`);
     const profileUrl = `https://api.pharosnetwork.xyz/user/profile?address=${wallet.address}`;
+    
     const headers = {
-      accept: "application/json",
+      accept: "application/json, text/plain, */*",
+      "accept-language": "en-US,en;q=0.8",
       authorization: `Bearer ${jwt}`,
+      "sec-ch-ua": '"Chromium";v="136", "Brave";v="136", "Not.A/Brand";v="99"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-site",
+      "sec-gpc": "1",
+      Referer: "https://testnet.pharosnetwork.xyz/",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
       "User-Agent": randomUseragent.getRandom(),
     };
 
@@ -89,9 +100,10 @@ const getUserInfo = async (wallet, jwt) => {
       logger.error(`Failed to fetch user info: ${data.msg || 'Unknown error'}`);
     }
   } catch (error) {
-    logger.error(`Failed to get user info: ${error.message}`);
+    logger.error(`Failed to get user info: ${error.response?.data?.msg || error.message}`);
   }
 };
+
 
 const main = async () => {
   if (!PRIVATE_KEYS.length) {
