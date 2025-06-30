@@ -1,25 +1,42 @@
 require('dotenv').config();
 const { ethers } = require('ethers');
-const axios = require('axios');
 const randomUseragent = require('random-useragent');
+const axios = require('axios');
 
+// === Logger ===
 const colors = {
   reset: '\x1b[0m',
+  cyan: '\x1b[36m',
   green: '\x1b[32m',
-  red: '\x1b[31m',
   yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  white: '\x1b[37m',
+  bold: '\x1b[1m',
 };
 
 const logger = {
   info: (msg) => console.log(`${colors.green}[✓] ${msg}${colors.reset}`),
+  step: (msg) => console.log(`${colors.white}[➤] ${msg}${colors.reset}`),
+  warn: (msg) => console.log(`${colors.yellow}[!] ${msg}${colors.reset}`),
   error: (msg) => console.log(`${colors.red}[✗] ${msg}${colors.reset}`),
-  step: (msg) => console.log(`${colors.yellow}[➤] ${msg}${colors.reset}`),
+  success: (msg) => console.log(`${colors.green}[+] ${msg}${colors.reset}`),
+  loading: (msg) => console.log(`${colors.cyan}[⟳] ${msg}${colors.reset}`),
+  wallet: (msg) => console.log(`${colors.yellow}[➤] ${msg}${colors.reset}`),
 };
 
+// === Config ===
 const RPC_URL = process.env.RPC_URL;
 const PRIVATE_KEYS = process.env.PRIVATE_KEYS.split('\n')
   .map(k => k.trim())
-  .filter(k => k.length > 0 && k.startsWith('0x'));
+  .filter(k => k.startsWith('0x'));
+
+const networkConfig = {
+  name: 'Pharos Testnet',
+  chainId: 688688,
+  rpcUrl: RPC_URL,
+};
+
+// === Functions ===
 
 const performCheckIn = async (wallet) => {
   try {
@@ -29,15 +46,19 @@ const performCheckIn = async (wallet) => {
     const signature = await wallet.signMessage(message);
     logger.step(`Signed message: ${signature}`);
 
+    const userAgent = randomUseragent.getRandom();
     const loginUrl = `https://api.pharosnetwork.xyz/user/login?address=${wallet.address}&signature=${signature}&invite_code=S6NGMzXSCDBxhnwo`;
+
     const headers = {
       accept: "application/json, text/plain, */*",
+      "accept-language": "en-US,en;q=0.8",
       authorization: "Bearer null",
-      "User-Agent": randomUseragent.getRandom(),
+      "User-Agent": userAgent,
       Referer: "https://testnet.pharosnetwork.xyz/",
     };
 
-    const loginResponse = await axios.post(loginUrl, {}, { headers });
+    logger.loading('Sending login request...');
+    const loginResponse = await axios.post(loginUrl, null, { headers });
     const loginData = loginResponse.data;
 
     if (loginData.code !== 0 || !loginData.data.jwt) {
@@ -46,48 +67,43 @@ const performCheckIn = async (wallet) => {
     }
 
     const jwt = loginData.data.jwt;
-    logger.info(`Login successful`);
+    logger.success(`Login successful, JWT: ${jwt}`);
 
     const checkInUrl = `https://api.pharosnetwork.xyz/sign/in?address=${wallet.address}`;
-    const checkInHeaders = { ...headers, authorization: `Bearer ${jwt}` };
+    headers.authorization = `Bearer ${jwt}`;
+    headers["User-Agent"] = randomUseragent.getRandom(); // Unique for check-in
 
-    const checkInResponse = await axios.post(checkInUrl, {}, { headers: checkInHeaders });
+    logger.loading('Sending check-in request...');
+    const checkInResponse = await axios.post(checkInUrl, null, { headers });
     const checkInData = checkInResponse.data;
 
     if (checkInData.code === 0) {
-      logger.info(`Check-in successful`);
+      logger.success(`Check-in successful for ${wallet.address}`);
+      return jwt;
     } else {
-      logger.error(`Check-in failed: ${checkInData.msg || 'Unknown error'}`);
+      logger.warn(`Check-in failed: ${checkInData.msg || 'Already checked in?'}`);
+      return jwt;
     }
-
-    return jwt;
   } catch (error) {
-    logger.error(`Check-in error for ${wallet.address}: ${error.message}`);
+    logger.error(`Check-in failed for ${wallet.address}: ${error.response?.data?.msg || error.message}`);
     return null;
   }
 };
 
 const getUserInfo = async (wallet, jwt) => {
   try {
-    logger.step(`Fetching user info for: ${wallet.address}`);
+    const userAgent = randomUseragent.getRandom();
+    logger.step(`Fetching user info for wallet: ${wallet.address}`);
     const profileUrl = `https://api.pharosnetwork.xyz/user/profile?address=${wallet.address}`;
     
     const headers = {
       accept: "application/json, text/plain, */*",
-      "accept-language": "en-US,en;q=0.8",
       authorization: `Bearer ${jwt}`,
-      "sec-ch-ua": '"Chromium";v="136", "Brave";v="136", "Not.A/Brand";v="99"',
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": '"Windows"',
-      "sec-fetch-dest": "empty",
-      "sec-fetch-mode": "cors",
-      "sec-fetch-site": "same-site",
-      "sec-gpc": "1",
+      "User-Agent": userAgent,
       Referer: "https://testnet.pharosnetwork.xyz/",
-      "Referrer-Policy": "strict-origin-when-cross-origin",
-      "User-Agent": randomUseragent.getRandom(),
     };
 
+    logger.loading('Sending profile request...');
     const response = await axios.get(profileUrl, { headers });
     const data = response.data;
 
@@ -104,16 +120,17 @@ const getUserInfo = async (wallet, jwt) => {
   }
 };
 
+// === Main Runner ===
 
 const main = async () => {
-  if (!PRIVATE_KEYS.length) {
-    logger.error('No private keys found in .env');
-    return;
-  }
-
   for (const pk of PRIVATE_KEYS) {
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const provider = new ethers.JsonRpcProvider(networkConfig.rpcUrl, {
+      chainId: networkConfig.chainId,
+      name: networkConfig.name,
+    });
     const wallet = new ethers.Wallet(pk, provider);
+
+    logger.wallet(`Using wallet: ${wallet.address}`);
     const jwt = await performCheckIn(wallet);
     if (jwt) {
       await getUserInfo(wallet, jwt);
@@ -121,4 +138,4 @@ const main = async () => {
   }
 };
 
-main();
+main().catch(e => logger.error(`Fatal: ${e.message}`));
