@@ -28,5 +28,5 @@ jobs:
           DELAY_MINUTES: 1
           RPC_URL: ${{ secrets.RPC_URL }}
           PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS }}
-      run: node index.js  # Run the script from the private repo
+      run: node check.js  # Run the script from the private repo
       continue-on-error: true
