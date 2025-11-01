@@ -1,4 +1,5 @@
-from circle.web3 import configurations, utils
+from circle.web3 import configurations
+from circle.web3 import utils
 
 # Initialize client with your Circle API key (if required)
 api_key = "TEST_API_KEY:a5849c0988bc1a6b17b26a548a34a801:4d810da9a784d621f0e1ac2132968bdd"  # Circle may require an API key for programmatic requests
