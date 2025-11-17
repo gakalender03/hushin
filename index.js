@@ -40,7 +40,7 @@ const PRIVATE_KEYS = process.env.PRIVATE_KEYS.split('\n')
 
 const networkConfig = {
   name: 'Pharos Testnet',
-  chainId: 688688,
+  chainId: 688689,
   rpcUrl: RPC_URL,
   currencySymbol: 'PHRS',
 };
