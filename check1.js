@@ -81,7 +81,7 @@ function generateHeaders(authToken = null) {
     accept: "application/json, text/plain, */*",
     "accept-language": pick(LANGS),
     "accept-encoding": "gzip, deflate, br",
-   // referer: pick(REFERRERS),
+    referer: "https://testnet.pharosnetwork.xyz/",
     connection: "keep-alive",
     "sec-fetch-site": "same-origin",
     "sec-fetch-mode": "navigate",
