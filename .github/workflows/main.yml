@@ -30,5 +30,10 @@ jobs:
           PRIVATE_KEYS1: ${{ secrets.PRIVATE_KEYS1 }}
           PRIVATE_KEYS2: ${{ secrets.PRIVATE_KEYS2 }}
           PRIVATE_KEYS3: ${{ secrets.PRIVATE_KEYS3 }}
+          PRIVATE_KEYS4: ${{ secrets.PRIVATE_KEYS4 }}
+          PRIVATE_KEYS5: ${{ secrets.PRIVATE_KEYS5 }}
+          PRIVATE_KEYS6: ${{ secrets.PRIVATE_KEYS6 }}
+          PRIVATE_KEYS7: ${{ secrets.PRIVATE_KEYS7 }}
+          PRIVATE_KEYS8: ${{ secrets.PRIVATE_KEYS8 }}
       run: node check1.js  # Run the script from the private repo
       continue-on-error: true
