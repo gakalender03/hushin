@@ -44,6 +44,8 @@ const PRIVATE_KEYS3 = process.env.PRIVATE_KEYS3.split('\n')
   .map(k => k.trim())
   .filter(k => k.startsWith('0x'));
 
+const PRIVATE_KEYS = [PRIVATE_KEYS1, PRIVATE_KEYS2, PRIVATE_KEYS3];
+
 const networkConfig = {
   name: 'Pharos Testnet',
   chainId: 688689,
