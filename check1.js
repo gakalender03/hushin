@@ -24,8 +24,23 @@ const logger = {
 };
 
 // === Config ===
-const RPC_URL = process.env.RPC_URL;
+/*const RPC_URL = process.env.RPC_URL;
 const PRIVATE_KEYS = process.env.PRIVATE_KEYS.split('\n')
+  .map(k => k.trim())
+  .filter(k => k.startsWith('0x'));*/
+
+
+const RPC_URL = process.env.RPC_URL;
+
+const PRIVATE_KEYS1 = process.env.PRIVATE_KEYS1.split('\n')
+  .map(k => k.trim())
+  .filter(k => k.startsWith('0x'));
+
+const PRIVATE_KEYS2 = process.env.PRIVATE_KEYS2.split('\n')
+  .map(k => k.trim())
+  .filter(k => k.startsWith('0x'));
+
+const PRIVATE_KEYS3 = process.env.PRIVATE_KEYS3.split('\n')
   .map(k => k.trim())
   .filter(k => k.startsWith('0x'));
 
