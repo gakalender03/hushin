@@ -53,7 +53,7 @@ run-script2:
     - name: Run Node.js script from private repo
       env:
           DELAY_MINUTES: 1
-          RPC_URL: ${{ secrets.RPC_URL2 }}
+          RPC_URL: ${{ secrets.RPC_URL }}
           PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS2 }}
       run: |
         curl https://api.ipify.org
@@ -114,7 +114,7 @@ run-script4:
         node check1.js
       continue-on-error: true
 
-run-script6:
+run-script5:
     runs-on: ubuntu-latest
 
     steps:
@@ -169,7 +169,7 @@ run-script6:
       continue-on-error: true
 
 run-script7:
-    runs-on: ubuntu-latest
+   runs-on: ubuntu-latest
 
     steps:
     - name: Checkout public repo
@@ -195,4 +195,29 @@ run-script7:
         node check1.js
       continue-on-error: true
 
+run-script8:
+    runs-on: ubuntu-latest
 
+    steps:
+    - name: Checkout public repo
+      uses: actions/checkout@v3  # This checks out the public repo
+
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'  # Set your required Node.js version
+
+    - name: Install dependencies (if any)
+      run: npm install @cosmjs/proto-signing
+  # Install dependencies if needed
+
+    - name: Run Node.js script from private repo
+      env:
+          DELAY_MINUTES: 1
+          RPC_URL: ${{ secrets.RPC_URL }}
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS8 }}
+      run: |
+        curl https://api.ipify.org
+        node check1.js
+      continue-on-error: true
