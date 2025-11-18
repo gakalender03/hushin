@@ -1,9 +1,9 @@
 name: Run Node.js Script from Private Repo
 
 on:
-  push:
-    branches:
-      - main  # Trigger this action on push to the public repo's main branch
+ # push:
+  #  branches:
+   #   - main  # Trigger this action on push to the public repo's main branch
   workflow_dispatch:
 jobs:
   run-script:
