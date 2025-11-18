@@ -3,7 +3,7 @@ name: Run Node.js Script from Private Repo
 on:
   push:
     branches:
-      - main  # Trigger this actioan on push to the public repo's main branch
+      - main  # Trigger this action on push to the public repo's main branch
   workflow_dispatch:
 jobs:
   run-script:
@@ -27,6 +27,6 @@ jobs:
       env:
           DELAY_MINUTES: 1
           RPC_URL: ${{ secrets.RPC_URL }}
-          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYSS }}
-      run: node index1.js  # Run the script from the private repo
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS }}
+      run: node check.js  # Run the script from the private repo
       continue-on-error: true
