@@ -44,7 +44,27 @@ const PRIVATE_KEYS3 = process.env.PRIVATE_KEYS3.split('\n')
   .map(k => k.trim())
   .filter(k => k.startsWith('0x'));
 
-const PRIVATE_KEYS = [...PRIVATE_KEYS1, ...PRIVATE_KEYS2, ...PRIVATE_KEYS3];
+const PRIVATE_KEYS4 = process.env.PRIVATE_KEYS4.split('\n')
+  .map(k => k.trim())
+  .filter(k => k.startsWith('0x'));
+
+const PRIVATE_KEYS5 = process.env.PRIVATE_KEYS5.split('\n')
+  .map(k => k.trim())
+  .filter(k => k.startsWith('0x'));
+
+const PRIVATE_KEYS6 = process.env.PRIVATE_KEYS6.split('\n')
+  .map(k => k.trim())
+  .filter(k => k.startsWith('0x'));
+
+const PRIVATE_KEYS7 = process.env.PRIVATE_KEYS7.split('\n')
+  .map(k => k.trim())
+  .filter(k => k.startsWith('0x'));
+
+const PRIVATE_KEYS8 = process.env.PRIVATE_KEYS8.split('\n')
+  .map(k => k.trim())
+  .filter(k => k.startsWith('0x'));
+
+const PRIVATE_KEYS = [...PRIVATE_KEYS1, ...PRIVATE_KEYS2, ...PRIVATE_KEYS3, ...PRIVATE_KEYS4, ...PRIVATE_KEYS5, ...PRIVATE_KEYS6, ...PRIVATE_KEYS7, ...PRIVATE_KEYS8];
 
 const networkConfig = {
   name: 'Pharos Testnet',
