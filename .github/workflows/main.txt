@@ -6,7 +6,7 @@ on:
       - main  # Trigger this action on push to the public repo's main branch
   workflow_dispatch:
 jobs:
-  run-script:
+  run-script1:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,13 +27,172 @@ jobs:
       env:
           DELAY_MINUTES: 1
           RPC_URL: ${{ secrets.RPC_URL }}
-          PRIVATE_KEYS1: ${{ secrets.PRIVATE_KEYS1 }}
-          PRIVATE_KEYS2: ${{ secrets.PRIVATE_KEYS2 }}
-          PRIVATE_KEYS3: ${{ secrets.PRIVATE_KEYS3 }}
-          PRIVATE_KEYS4: ${{ secrets.PRIVATE_KEYS4 }}
-          PRIVATE_KEYS5: ${{ secrets.PRIVATE_KEYS5 }}
-          PRIVATE_KEYS6: ${{ secrets.PRIVATE_KEYS6 }}
-          PRIVATE_KEYS7: ${{ secrets.PRIVATE_KEYS7 }}
-          PRIVATE_KEYS8: ${{ secrets.PRIVATE_KEYS8 }}
-      run: node check1.js  # Run the script from the private repo
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS1 }}
+      run: |
+        curl https://api.ipify.org
+        node check1.js
       continue-on-error: true
+
+run-script2:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout public repo
+      uses: actions/checkout@v3  # This checks out the public repo
+
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'  # Set your required Node.js version
+
+    - name: Install dependencies (if any)
+      run: npm install @cosmjs/proto-signing
+  # Install dependencies if needed
+
+    - name: Run Node.js script from private repo
+      env:
+          DELAY_MINUTES: 1
+          RPC_URL: ${{ secrets.RPC_URL2 }}
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS2 }}
+      run: |
+        curl https://api.ipify.org
+        node check1.js
+      continue-on-error: true
+
+run-script3:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout public repo
+      uses: actions/checkout@v3  # This checks out the public repo
+
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'  # Set your required Node.js version
+
+    - name: Install dependencies (if any)
+      run: npm install @cosmjs/proto-signing
+  # Install dependencies if needed
+
+    - name: Run Node.js script from private repo
+      env:
+          DELAY_MINUTES: 1
+          RPC_URL: ${{ secrets.RPC_URL }}
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS3 }}
+      run: |
+        curl https://api.ipify.org
+        node check1.js
+      continue-on-error: true
+
+run-script4:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout public repo
+      uses: actions/checkout@v3  # This checks out the public repo
+
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'  # Set your required Node.js version
+
+    - name: Install dependencies (if any)
+      run: npm install @cosmjs/proto-signing
+  # Install dependencies if needed
+
+    - name: Run Node.js script from private repo
+      env:
+          DELAY_MINUTES: 1
+          RPC_URL: ${{ secrets.RPC_URL }}
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS4 }}
+      run: |
+        curl https://api.ipify.org
+        node check1.js
+      continue-on-error: true
+
+run-script6:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout public repo
+      uses: actions/checkout@v3  # This checks out the public repo
+
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'  # Set your required Node.js version
+
+    - name: Install dependencies (if any)
+      run: npm install @cosmjs/proto-signing
+  # Install dependencies if needed
+
+    - name: Run Node.js script from private repo
+      env:
+          DELAY_MINUTES: 1
+          RPC_URL: ${{ secrets.RPC_URL }}
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS5 }}
+      run: |
+        curl https://api.ipify.org
+        node check1.js
+      continue-on-error: true
+
+run-script6:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout public repo
+      uses: actions/checkout@v3  # This checks out the public repo
+
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'  # Set your required Node.js version
+
+    - name: Install dependencies (if any)
+      run: npm install @cosmjs/proto-signing
+  # Install dependencies if needed
+
+    - name: Run Node.js script from private repo
+      env:
+          DELAY_MINUTES: 1
+          RPC_URL: ${{ secrets.RPC_URL }}
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS6 }}
+      run: |
+        curl https://api.ipify.org
+        node check1.js
+      continue-on-error: true
+
+run-script7:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout public repo
+      uses: actions/checkout@v3  # This checks out the public repo
+
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'  # Set your required Node.js version
+
+    - name: Install dependencies (if any)
+      run: npm install @cosmjs/proto-signing
+  # Install dependencies if needed
+
+    - name: Run Node.js script from private repo
+      env:
+          DELAY_MINUTES: 1
+          RPC_URL: ${{ secrets.RPC_URL }}
+          PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS7 }}
+      run: |
+        curl https://api.ipify.org
+        node check1.js
+      continue-on-error: true
+
+
