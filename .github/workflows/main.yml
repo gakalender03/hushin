@@ -33,7 +33,7 @@ jobs:
         node check1.js
       continue-on-error: true
 
-run-script2:
+  run-script2:
     runs-on: ubuntu-latest
 
     steps:
@@ -60,7 +60,7 @@ run-script2:
         node check1.js
       continue-on-error: true
 
-run-script3:
+  run-script3:
     runs-on: ubuntu-latest
 
     steps:
@@ -87,7 +87,7 @@ run-script3:
         node check1.js
       continue-on-error: true
 
-run-script4:
+  run-script4:
     runs-on: ubuntu-latest
 
     steps:
@@ -114,7 +114,7 @@ run-script4:
         node check1.js
       continue-on-error: true
 
-run-script5:
+  run-script5:
     runs-on: ubuntu-latest
 
     steps:
@@ -141,7 +141,7 @@ run-script5:
         node check1.js
       continue-on-error: true
 
-run-script6:
+  run-script6:
     runs-on: ubuntu-latest
 
     steps:
@@ -168,8 +168,8 @@ run-script6:
         node check1.js
       continue-on-error: true
 
-run-script7:
-   runs-on: ubuntu-latest
+  run-script7:
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout public repo
@@ -195,7 +195,7 @@ run-script7:
         node check1.js
       continue-on-error: true
 
-run-script8:
+  run-script8:
     runs-on: ubuntu-latest
 
     steps:
