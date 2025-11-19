@@ -52,7 +52,7 @@ const buildGasOptions = async (provider) => {
 // ----------------------
 
 const RPC_URL = process.env.RPC_URL;
-const PRIVATE_KEYS = process.env.PRIVATE_KEYSC.split('\n')
+const PRIVATE_KEYS = process.env.PRIVATE_KEYS.split('\n')
   .map(k => k.trim())
   .filter(k => k.length > 0 && k.startsWith('0x'));
 
