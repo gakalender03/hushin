@@ -34,26 +34,25 @@ const logger = {
 };
 
 // ----------------------
-// FIXED GAS HANDLER
+// EIP-1559 SAFE GAS OPTIONS HELPER
 // ----------------------
-async function buildGasOptions(provider) {
+const buildGasOptions = async (provider) => {
   const feeData = await provider.getFeeData();
-
-  let gas = {};
-
+  // prefer EIP-1559 fields when present, fallback to gasPrice
   if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
-    gas.maxFeePerGas = feeData.maxFeePerGas;
-    gas.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
-  } else {
-    gas.gasPrice = feeData.gasPrice || ethers.parseUnits('1', 'gwei');
+    return {
+      maxFeePerGas: feeData.maxFeePerGas,
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+    };
   }
-
-  return gas;
-}
+  return {
+    gasPrice: feeData.gasPrice || ethers.parseUnits('1', 'gwei'),
+  };
+};
 // ----------------------
 
 const RPC_URL = process.env.RPC_URL;
-const PRIVATE_KEYS = process.env.PRIVATE_KEYS.split('\n')
+const PRIVATE_KEYS = process.env.PRIVATE_KEYSC.split('\n')
   .map(k => k.trim())
   .filter(k => k.length > 0 && k.startsWith('0x'));
 
@@ -153,9 +152,7 @@ const lpOptions = [
   { id: 1, token0: 'WPHRS', token1: 'USDC', amount0: 0.0001, amount1: 0.0001, fee: 3000 },
   { id: 2, token0: 'WPHRS', token1: 'USDT', amount0: 0.0001, amount1: 0.0001, fee: 3000 },
 ];
-// ----------------------
-// UTIL: Wait for tx receipt with retries
-// ----------------------
+
 const waitForTransactionWithRetry = async (provider, txHash, maxRetries = 5, baseDelayMs = 1000) => {
   let retries = 0;
   while (retries < maxRetries) {
@@ -181,9 +178,6 @@ const waitForTransactionWithRetry = async (provider, txHash, maxRetries = 5, bas
   throw new Error(`Failed to get transaction receipt for ${txHash} after ${maxRetries} retries`);
 };
 
-// ----------------------
-// CHECK BALANCE + APPROVAL (uses buildGasOptions)
-// ----------------------
 const checkBalanceAndApproval = async (wallet, tokenAddress, amount, decimals, spender) => {
   try {
     const tokenContract = new ethers.Contract(tokenAddress, erc20Abi, wallet);
@@ -192,7 +186,9 @@ const checkBalanceAndApproval = async (wallet, tokenAddress, amount, decimals, s
 
     if (balance < required) {
       logger.warn(
-        `Skipping: Insufficient ${Object.keys(tokenDecimals).find(key => tokenDecimals[key] === decimals)} balance: ${ethers.formatUnits(balance, decimals)} < ${amount}`
+        `Skipping: Insufficient ${Object.keys(tokenDecimals).find(
+          key => tokenDecimals[key] === decimals
+        )} balance: ${ethers.formatUnits(balance, decimals)} < ${amount}`
       );
       return false;
     }
@@ -200,32 +196,17 @@ const checkBalanceAndApproval = async (wallet, tokenAddress, amount, decimals, s
     const allowance = await tokenContract.allowance(wallet.address, spender);
     if (allowance < required) {
       logger.step(`Approving ${amount} tokens for ${spender}...`);
-      try {
-        // estimate gas for approve (keep safe margin)
-        let estimatedGas;
-        try {
-          estimatedGas = await tokenContract.approve.estimateGas(spender, ethers.MaxUint256);
-        } catch (err) {
-          // fallback to provider.estimateGas if direct estimation fails
-          estimatedGas = await wallet.provider.estimateGas({
-            to: tokenAddress,
-            data: tokenContract.interface.encodeFunctionData('approve', [spender, ethers.MaxUint256]),
-          });
-        }
+      const estimatedGas = await tokenContract.approve.estimateGas(spender, ethers.MaxUint256);
 
-        const gasOpts = await buildGasOptions(wallet.provider);
-        const txOptions = {
-          gasLimit: Math.ceil(Number(estimatedGas) * 1.2),
-          ...gasOpts,
-        };
+      // use helper that chooses EIP-1559 fields when available
+      const gasOpts = await buildGasOptions(wallet.provider);
 
-        const approveTx = await tokenContract.approve(spender, ethers.MaxUint256, txOptions);
-        const receipt = await waitForTransactionWithRetry(wallet.provider, approveTx.hash);
-        logger.success('Approval completed');
-      } catch (error) {
-        logger.error(`Approval failed: ${error.message}`);
-        return false;
-      }
+      const approveTx = await tokenContract.approve(spender, ethers.MaxUint256, {
+        gasLimit: Math.ceil(Number(estimatedGas) * 1.2),
+        ...gasOpts,
+      });
+      const receipt = await waitForTransactionWithRetry(wallet.provider, approveTx.hash);
+      logger.success('Approval completed');
     }
 
     return true;
@@ -235,9 +216,95 @@ const checkBalanceAndApproval = async (wallet, tokenAddress, amount, decimals, s
   }
 };
 
-// ----------------------
-// MULTICALL DATA HELPER
-// ----------------------
+const getUserInfo = async (wallet, jwt) => {
+  try {
+    logger.user(`Fetching user info for wallet: ${wallet.address}`);
+    const profileUrl = `https://api.pharosnetwork.xyz/user/profile?address=${wallet.address}`;
+    const headers = {
+      accept: "application/json, text/plain, */*",
+      "accept-language": "en-US,en;q=0.8",
+      authorization: `Bearer ${jwt}`,
+      "sec-ch-ua": '"Chromium";v="136", "Brave";v="136", "Not.A/Brand";v="99"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-site",
+      "sec-gpc": "1",
+      Referer: "https://testnet.pharosnetwork.xyz/",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "User-Agent": randomUseragent.getRandom(),
+    };
+
+    const axiosConfig = {
+      method: 'get',
+      url: profileUrl,
+      headers,
+    };
+
+    logger.loading('Fetching user profile...');
+    const response = await axios(axiosConfig);
+    const data = response.data;
+
+    if (data.code !== 0 || !data.data.user_info) {
+      logger.error(`Failed to fetch user info: ${data.msg || 'Unknown error'}`);
+      return;
+    }
+
+    const userInfo = data.data.user_info;
+    logger.info(`User ID: ${userInfo.ID}`);
+    logger.info(`Task Points: ${userInfo.TaskPoints}`);
+    logger.info(`Total Points: ${userInfo.TotalPoints}`);
+  } catch (error) {
+    logger.error(`Failed to fetch user info: ${error.message}`);
+  }
+};
+
+const verifyTask = async (wallet, jwt, txHash) => {
+  try {
+    logger.step(`Verifying task ID 103 for transaction: ${txHash}`);
+    const verifyUrl = `https://api.pharosnetwork.xyz/task/verify?address=${wallet.address}&task_id=103&tx_hash=${txHash}`;
+    
+    const headers = {
+      accept: "application/json, text/plain, */*",
+      "accept-language": "en-US,en;q=0.8",
+      authorization: `Bearer ${jwt}`,
+      priority: "u=1, i",
+      "sec-ch-ua": '"Chromium";v="136", "Brave";v="136", "Not.A/Brand";v="99"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-site",
+      "sec-gpc": "1",
+      Referer: "https://testnet.pharosnetwork.xyz/",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "User-Agent": randomUseragent.getRandom(),
+    };
+
+    const axiosConfig = {
+      method: 'post',
+      url: verifyUrl,
+      headers,
+    };
+
+    logger.loading('Sending task verification request...');
+    const response = await axios(axiosConfig);
+    const data = response.data;
+
+    if (data.code === 0 && data.data.verified) {
+      logger.success(`Task ID 103 verified successfully for ${txHash}`);
+      return true;
+    } else {
+      logger.warn(`Task verification failed: ${data.msg || 'Unknown error'}`);
+      return false;
+    }
+  } catch (error) {
+    logger.error(`Task verification failed for ${txHash}: ${error.message}`);
+    return false;
+  }
+};
+
 const getMulticallData = (pair, amount, walletAddress) => {
   try {
     const decimals = tokenDecimals[pair.from];
@@ -263,9 +330,6 @@ const getMulticallData = (pair, amount, walletAddress) => {
   }
 };
 
-// ----------------------
-// PERFORM SWAP (multicall) - uses buildGasOptions
-// ----------------------
 const performSwap = async (wallet, provider, index, jwt) => {
   try {
     const pair = pairOptions[Math.floor(Math.random() * pairOptions.length)];
@@ -304,21 +368,19 @@ const performSwap = async (wallet, provider, index, jwt) => {
     const deadline = Math.floor(Date.now() / 1000) + 300;
     let estimatedGas;
     try {
-      estimatedGas = await contract.multicall.estimateGas(deadline, multicallData, { from: wallet.address });
+      estimatedGas = await contract.multicall.estimateGas(deadline, multicallData, {
+        from: wallet.address,
+      });
     } catch (error) {
       logger.error(`Gas estimation failed for swap ${index + 1}: ${error.message}`);
-      // try a generic estimate fallback
-      const encoded = contract.interface.encodeFunctionData('multicall', [deadline, multicallData]);
-      estimatedGas = await provider.estimateGas({ to: contractAddress, data: encoded, from: wallet.address });
+      return;
     }
 
     const gasOpts = await buildGasOptions(provider);
-    const txOptions = {
+    const tx = await contract.multicall(deadline, multicallData, {
       gasLimit: Math.ceil(Number(estimatedGas) * 1.2),
       ...gasOpts,
-    };
-
-    const tx = await contract.multicall(deadline, multicallData, txOptions);
+    });
 
     logger.loading(`Swap transaction ${index + 1} sent, waiting for confirmation...`);
     const receipt = await waitForTransactionWithRetry(provider, tx.hash);
@@ -337,9 +399,6 @@ const performSwap = async (wallet, provider, index, jwt) => {
   }
 };
 
-// ----------------------
-// TRANSFER PHRS - uses buildGasOptions
-// ----------------------
 const transferPHRS = async (wallet, provider, index, jwt) => {
   try {
     const amount = 0.000001;
@@ -356,14 +415,12 @@ const transferPHRS = async (wallet, provider, index, jwt) => {
     }
 
     const gasOpts = await buildGasOptions(provider);
-    const txOptions = {
+    const tx = await wallet.sendTransaction({
       to: toAddress,
       value: required,
       gasLimit: 21000,
       ...gasOpts,
-    };
-
-    const tx = await wallet.sendTransaction(txOptions);
+    });
 
     logger.loading(`Transfer transaction ${index + 1} sent, waiting for confirmation...`);
     const receipt = await waitForTransactionWithRetry(provider, tx.hash);
@@ -382,9 +439,6 @@ const transferPHRS = async (wallet, provider, index, jwt) => {
   }
 };
 
-// ----------------------
-// WRAP PHRS -> WPHRS - uses buildGasOptions
-// ----------------------
 const wrapPHRS = async (wallet, provider, index, jwt) => {
   try {
     const minAmount = 0.000001;
@@ -405,19 +459,15 @@ const wrapPHRS = async (wallet, provider, index, jwt) => {
       estimatedGas = await wphrsContract.deposit.estimateGas({ value: amountWei });
     } catch (error) {
       logger.error(`Gas estimation failed for wrap ${index + 1}: ${error.message}`);
-      // fallback to provider estimate
-      const encoded = wphrsContract.interface.encodeFunctionData('deposit', []);
-      estimatedGas = await provider.estimateGas({ to: tokens.WPHRS, data: encoded, from: wallet.address, value: amountWei });
+      return;
     }
 
     const gasOpts = await buildGasOptions(provider);
-    const txOptions = {
+    const tx = await wphrsContract.deposit({
       value: amountWei,
       gasLimit: Math.ceil(Number(estimatedGas) * 1.2),
       ...gasOpts,
-    };
-
-    const tx = await wphrsContract.deposit(txOptions);
+    });
 
     logger.loading(`Wrap transaction ${index + 1} sent, waiting for confirmation...`);
     const receipt = await waitForTransactionWithRetry(provider, tx.hash);
@@ -436,9 +486,166 @@ const wrapPHRS = async (wallet, provider, index, jwt) => {
   }
 };
 
-// ----------------------
-// ADD LIQUIDITY (positionManager.mint) - uses buildGasOptions
-// ----------------------
+const claimFaucet = async (wallet) => {
+  try {
+    logger.step(`Checking faucet eligibility for wallet: ${wallet.address}`);
+
+    const message = "pharos";
+    const signature = await wallet.signMessage(message);
+    logger.step(`Signed message: ${signature}`);
+
+    const loginUrl = `https://api.pharosnetwork.xyz/user/login?address=${wallet.address}&signature=${signature}&invite_code=S6NGMzXSCDBxhnwo`;
+    const headers = {
+      accept: "application/json, text/plain, */*",
+      "accept-language": "en-US,en;q=0.8",
+      authorization: "Bearer null",
+      "sec-ch-ua": '"Chromium";v="136", "Brave";v="136", "Not.A/Brand";v="99"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-site",
+      "sec-gpc": "1",
+      Referer: "https://testnet.pharosnetwork.xyz/",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "User-Agent": randomUseragent.getRandom(),
+    };
+
+    const axiosConfig = {
+      method: 'post',
+      url: loginUrl,
+      headers,
+    };
+
+    logger.loading('Sending login request for faucet...');
+    const loginResponse = await axios(axiosConfig);
+    const loginData = loginResponse.data;
+
+    if (loginData.code !== 0 || !loginData.data.jwt) {
+      logger.error(`Login failed for faucet: ${loginData.msg || 'Unknown error'}`);
+      return false;
+    }
+
+    const jwt = loginData.data.jwt;
+    logger.success(`Login successful for faucet, JWT: ${jwt}`);
+
+    const statusUrl = `https://api.pharosnetwork.xyz/faucet/status?address=${wallet.address}`;
+    const statusHeaders = {
+      ...headers,
+      authorization: `Bearer ${jwt}`,
+    };
+
+    logger.loading('Checking faucet status...');
+    const statusResponse = await axios({
+      method: 'get',
+      url: statusUrl,
+      headers: statusHeaders,
+    });
+    const statusData = statusResponse.data;
+
+    if (statusData.code !== 0 || !statusData.data) {
+      logger.error(`Faucet status check failed: ${statusData.msg || 'Unknown error'}`);
+      return false;
+    }
+
+    if (!statusData.data.is_able_to_faucet) {
+      const nextAvailable = new Date(statusData.data.avaliable_timestamp * 1000).toLocaleString('en-US', { timeZone: 'Asia/Makassar' });
+      logger.warn(`Faucet not available until: ${nextAvailable}`);
+      return false;
+    }
+
+    const claimUrl = `https://api.pharosnetwork.xyz/faucet/daily?address=${wallet.address}`;
+    logger.loading('Claiming faucet...');
+    const claimResponse = await axios({
+      method: 'post',
+      url: claimUrl,
+      headers: statusHeaders,
+    });
+    const claimData = claimResponse.data;
+
+    if (claimData.code === 0) {
+      logger.success(`Faucet claimed successfully for ${wallet.address}`);
+      return true;
+    } else {
+      logger.error(`Faucet claim failed: ${claimData.msg || 'Unknown error'}`);
+      return false;
+    }
+  } catch (error) {
+    logger.error(`Faucet claim failed for ${wallet.address}: ${error.message}`);
+    return false;
+  }
+};
+
+const performCheckIn = async (wallet) => {
+  try {
+    logger.step(`Performing daily check-in for wallet: ${wallet.address}`);
+
+    const message = "pharos";
+    const signature = await wallet.signMessage(message);
+    logger.step(`Signed message: ${signature}`);
+
+    const loginUrl = `https://api.pharosnetwork.xyz/user/login?address=${wallet.address}&signature=${signature}&invite_code=S6NGMzXSCDBxhnwo`;
+    const headers = {
+      accept: "application/json, text/plain, */*",
+      "accept-language": "en-US,en;q=0.8",
+      authorization: "Bearer null",
+      "sec-ch-ua": '"Chromium";v="136", "Brave";v="136", "Not.A/Brand";v="99"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-site",
+      "sec-gpc": "1",
+      Referer: "https://testnet.pharosnetwork.xyz/",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "User-Agent": randomUseragent.getRandom(),
+    };
+
+    const axiosConfig = {
+      method: 'post',
+      url: loginUrl,
+      headers,
+    };
+
+    logger.loading('Sending login request...');
+    const loginResponse = await axios(axiosConfig);
+    const loginData = loginResponse.data;
+
+    if (loginData.code !== 0 || !loginData.data.jwt) {
+      logger.error(`Login failed: ${loginData.msg || 'Unknown error'}`);
+      return null;
+    }
+
+    const jwt = loginData.data.jwt;
+    logger.success(`Login successful, JWT: ${jwt}`);
+
+    const checkInUrl = `https://api.pharosnetwork.xyz/sign/in?address=${wallet.address}`;
+    const checkInHeaders = {
+      ...headers,
+      authorization: `Bearer ${jwt}`,
+    };
+
+    logger.loading('Sending check-in request...');
+    const checkInResponse = await axios({
+      method: 'post',
+      url: checkInUrl,
+      headers: checkInHeaders,
+    });
+    const checkInData = checkInResponse.data;
+
+    if (checkInData.code === 0) {
+      logger.success(`Check-in successful for ${wallet.address}`);
+      return jwt;
+    } else {
+      logger.warn(`Check-in failed, possibly already checked in: ${checkInData.msg || 'Unknown error'}`);
+      return jwt;
+    }
+  } catch (error) {
+    logger.error(`Check-in failed for ${wallet.address}: ${error.message}`);
+    return null;
+  }
+};
+
 const addLiquidity = async (wallet, provider, index, jwt) => {
   try {
     const pair = lpOptions[Math.floor(Math.random() * lpOptions.length)];
@@ -485,18 +692,15 @@ const addLiquidity = async (wallet, provider, index, jwt) => {
       estimatedGas = await positionManager.mint.estimateGas(mintParams, { from: wallet.address });
     } catch (error) {
       logger.error(`Gas estimation failed for LP ${index + 1}: ${error.message}`);
-      // fallback encode + provider estimate
-      const encoded = positionManager.interface.encodeFunctionData('mint', [mintParams]);
-      estimatedGas = await provider.estimateGas({ to: tokens.POSITION_MANAGER, data: encoded, from: wallet.address, value: 0 });
+      return;
     }
 
     const gasOpts = await buildGasOptions(provider);
-    const txOptions = {
+
+    const tx = await positionManager.mint(mintParams, {
       gasLimit: Math.ceil(Number(estimatedGas) * 1.2),
       ...gasOpts,
-    };
-
-    const tx = await positionManager.mint(mintParams, txOptions);
+    });
 
     logger.loading(`Liquidity Add ${index + 1} sent, waiting for confirmation...`);
     const receipt = await waitForTransactionWithRetry(provider, tx.hash);
@@ -515,273 +719,104 @@ const addLiquidity = async (wallet, provider, index, jwt) => {
   }
 };
 
-// ----------------------
-// USER API HELPERS: getUserInfo, verifyTask
-// (these use axios; unchanged except for robust error handling)
-// ----------------------
-const getUserInfo = async (wallet, jwt) => {
-  try {
-    logger.user(`Fetching user info for wallet: ${wallet.address}`);
-    const profileUrl = `https://api.pharosnetwork.xyz/user/profile?address=${wallet.address}`;
-    const headers = {
-      accept: "application/json, text/plain, */*",
-      "accept-language": "en-US,en;q=0.8",
-      authorization: `Bearer ${jwt}`,
-      "User-Agent": randomUseragent.getRandom(),
-      Referer: "https://testnet.pharosnetwork.xyz/",
-    };
-
-    const axiosConfig = {
-      method: 'get',
-      url: profileUrl,
-      headers,
-    };
-
-    logger.loading('Fetching user profile...');
-    const response = await axios(axiosConfig);
-    const data = response.data;
-
-    if (data.code !== 0 || !data.data.user_info) {
-      logger.error(`Failed to fetch user info: ${data.msg || 'Unknown error'}`);
-      return;
-    }
-
-    const userInfo = data.data.user_info;
-    logger.info(`User ID: ${userInfo.ID}`);
-    logger.info(`Task Points: ${userInfo.TaskPoints}`);
-    logger.info(`Total Points: ${userInfo.TotalPoints}`);
-  } catch (error) {
-    logger.error(`Failed to fetch user info: ${error.message}`);
+const getUserDelay = () => {
+  // Always use environment variable in CI
+  if (process.env.CI || !process.stdout.isTTY) {
+    const minutes = parseInt(process.env.DELAY_MINUTES || '30', 10);
+    return isNaN(minutes) ? 1 : minutes;
   }
+
+  // Only use prompt in interactive terminals
+  
 };
 
-const verifyTask = async (wallet, jwt, txHash) => {
-  try {
-    logger.step(`Verifying task ID 103 for transaction: ${txHash}`);
-    const verifyUrl = `https://api.pharosnetwork.xyz/task/verify?address=${wallet.address}&task_id=103&tx_hash=${txHash}`;
-    const headers = {
-      accept: "application/json, text/plain, */*",
-      authorization: `Bearer ${jwt}`,
-      "User-Agent": randomUseragent.getRandom(),
-      Referer: "https://testnet.pharosnetwork.xyz/",
-    };
+const countdown = async (minutes) => {
+  const totalSeconds = minutes * 60;
+  logger.info(`Starting ${minutes}-minute countdown...`);
 
-    const axiosConfig = {
-      method: 'post',
-      url: verifyUrl,
-      headers,
-    };
-
-    logger.loading('Sending task verification request...');
-    const response = await axios(axiosConfig);
-    const data = response.data;
-
-    if (data.code === 0 && data.data.verified) {
-      logger.success(`Task ID 103 verified successfully for ${txHash}`);
-      return true;
-    } else {
-      logger.warn(`Task verification failed: ${data.msg || 'Unknown error'}`);
-      return false;
-    }
-  } catch (error) {
-    logger.error(`Task verification failed for ${txHash}: ${error.message}`);
-    return false;
-  }
-};
-// ----------------------
-// FAUCET
-// ----------------------
-const claimFaucet = async (wallet, jwt) => {
-  try {
-    logger.step(`Requesting faucet for wallet: ${wallet.address}`);
-
-    const faucetUrl = `https://api.pharosnetwork.xyz/faucet/claim?address=${wallet.address}`;
-    const headers = {
-      accept: "application/json, text/plain, */*",
-      authorization: `Bearer ${jwt}`,
-      "User-Agent": randomUseragent.getRandom(),
-      Referer: "https://testnet.pharosnetwork.xyz/",
-    };
-
-    const axiosConfig = {
-      method: 'post',
-      url: faucetUrl,
-      headers,
-    };
-
-    logger.loading(`Sending faucet request...`);
-    const response = await axios(axiosConfig);
-    const data = response.data;
-
-    if (data.code === 0 && data.data.status === "success") {
-      logger.success(`Faucet claim successful.`);
-      logger.step(`TX: https://testnet.pharosnetwork.xyz/tx/${data.data.tx_hash}`);
-    } else {
-      logger.warn(`Faucet claim not available: ${data.msg || 'Unknown reason'}`);
-    }
-  } catch (error) {
-    logger.error(`Faucet request failed: ${error.message}`);
-  }
-};
-
-// ----------------------
-// DAILY CHECK-IN
-// ----------------------
-const doDailyCheckIn = async (wallet, jwt) => {
-  try {
-    logger.step(`Performing daily check-in for wallet: ${wallet.address}`);
-
-    const checkInUrl = `https://api.pharosnetwork.xyz/task/checkin?address=${wallet.address}`;
-    const headers = {
-      accept: "application/json, text/plain, */*",
-      authorization: `Bearer ${jwt}`,
-      "User-Agent": randomUseragent.getRandom(),
-      Referer: "https://testnet.pharosnetwork.xyz/",
-    };
-
-    const axiosConfig = {
-      method: 'post',
-      url: checkInUrl,
-      headers,
-    };
-
-    logger.loading(`Sending daily check-in request...`);
-    const response = await axios(axiosConfig);
-    const data = response.data;
-
-    if (data.code === 0 && data.data.checked_in) {
-      logger.success(`Daily check-in completed.`);
-    } else {
-      logger.warn(`Daily check-in failed: ${data.msg || 'Unknown reason'}`);
-    }
-  } catch (error) {
-    logger.error(`Daily check-in failed: ${error.message}`);
-  }
-};
-
-// ----------------------
-// COUNTDOWN
-// ----------------------
-const countdownTimer = async (seconds) => {
-  const colorsList = ['\x1b[35m', '\x1b[36m'];
-  for (let i = seconds; i >= 1; i--) {
-    const color = colorsList[Math.floor(Math.random() * colorsList.length)];
-    process.stdout.write(`\r${color}⏳ Next wallet in ${i} seconds...${colors.reset}`);
+  for (let seconds = totalSeconds; seconds >= 0; seconds--) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    process.stdout.write(`\r${colors.cyan}Time remaining: ${mins}m ${secs}s${colors.reset} `);
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
-  console.log('');
+  process.stdout.write('\rCountdown complete! Restarting process...\n');
 };
 
-// ----------------------
-// MAIN ACTION LOOP
-// ----------------------
-const runActions = async (wallet, provider, jwt) => {
-  const actions = [
-    async (index) => await performSwap(wallet, provider, index, jwt),
-    async (index) => await transferPHRS(wallet, provider, index, jwt),
-    async (index) => await wrapPHRS(wallet, provider, index, jwt),
-    async (index) => await addLiquidity(wallet, provider, index, jwt),
-  ];
-
-  for (let i = 0; i < actions.length; i++) {
-    try {
-      await actions[i](i);
-
-      const delay = (2 + Math.floor(Math.random() * 60)) * 1000;
-      logger.step(`Waiting ${delay / 1000} seconds before next action...`);
-      await new Promise(r => setTimeout(r, delay));
-    } catch (e) {
-      logger.error(`Action ${i + 1} failed: ${e.message}`);
-      continue;
-    }
-  }
-};
-
-// ----------------------
-// GET JWT FOR USER
-// ----------------------
-const getJwtForAddress = async (wallet) => {
-  try {
-    const url = `https://api.pharosnetwork.xyz/get_jwt?address=${wallet.address}`;
-
-    const headers = {
-      accept: "application/json, text/plain, */*",
-      "User-Agent": randomUseragent.getRandom(),
-      Referer: "https://testnet.pharosnetwork.xyz/",
-    };
-
-    logger.loading("Requesting JWT token...");
-    const response = await axios.get(url, { headers });
-
-    if (response.data.code === 0 && response.data.data.jwt) {
-      logger.success("JWT obtained.");
-      return response.data.data.jwt;
-    } else {
-      logger.error(`Failed to retrieve JWT: ${response.data.msg || 'Unknown error'}`);
-      return null;
-    }
-  } catch (error) {
-    logger.error(`JWT error: ${error.message}`);
-    return null;
-  }
-};
-
-// ----------------------
-// MAIN EXECUTION
-// ----------------------
 const main = async () => {
   logger.banner();
 
-  logger.user(`Loaded ${PRIVATE_KEYS.length} wallets.`);
-  logger.user(`RPC Endpoint: ${RPC_URL}`);
-  console.log("");
+  const delayMinutes = getUserDelay();
+  logger.info(`Delay between cycles set to ${delayMinutes} minutes`);
 
-  for (let index = 0; index < PRIVATE_KEYS.length; index++) {
-    const privateKey = PRIVATE_KEYS[index];
-    logger.wallet(`Using wallet ${index + 1}/${PRIVATE_KEYS.length}`);
-
-    try {
-      const provider = new ethers.JsonRpcProvider(RPC_URL);
-      const wallet = new ethers.Wallet(privateKey, provider);
-      logger.info(`Wallet address: ${wallet.address}`);
-
-      // JWT
-      const jwt = await getJwtForAddress(wallet);
-      if (!jwt) {
-        logger.error("Skipping wallet: JWT retrieval failed.");
-        continue;
-      }
-
-      // Run profile + check-in
-      await getUserInfo(wallet, jwt);
-      await doDailyCheckIn(wallet, jwt);
-
-      // Faucet
-      const walletBalance = await provider.getBalance(wallet.address);
-      if (walletBalance < ethers.parseEther("0.0001")) {
-        logger.warn("Low PHRS balance, attempting faucet...");
-        await claimFaucet(wallet, jwt);
-      }
-
-      // Run all 4 actions (swap, transfer, wrap, LP)
-      await runActions(wallet, provider, jwt);
-
-      // Cooldown before next wallet
-      if (index < PRIVATE_KEYS.length - 1) {
-        const cooldownSeconds = 60 + Math.floor(Math.random() * 60);
-        logger.step(`Cooldown: ${cooldownSeconds} seconds before next wallet.`);
-        await countdownTimer(cooldownSeconds);
-      }
-
-    } catch (error) {
-      logger.error(`Wallet ${index + 1} failed: ${error.message}`);
-      continue;
-    }
+  if (!PRIVATE_KEYS.length) {
+    logger.error('No private keys found in .env');
+    return;
   }
 
-  logger.success("All wallets completed.");
+  const numTransfers = 10;
+  const numWraps = 10;
+  const numSwaps = 10;
+  const numLPs = 10;
+
+  while (true) {
+    for (const privateKey of PRIVATE_KEYS) {
+      const provider = new ethers.JsonRpcProvider(networkConfig.rpcUrl, {
+        chainId: networkConfig.chainId,
+        name: networkConfig.name,
+      });
+      const wallet = new ethers.Wallet(privateKey, provider);
+
+      logger.wallet(`Using wallet: ${wallet.address}`);
+
+      await claimFaucet(wallet);
+
+      const jwt = await performCheckIn(wallet);
+      if (jwt) {
+        await getUserInfo(wallet, jwt);
+      } else {
+        logger.error('Skipping user info fetch due to failed check-in');
+      }
+
+      console.log(`\n${colors.cyan}------------------------${colors.reset}`);
+      console.log(`${colors.cyan}TRANSFERS${colors.reset}`);
+      console.log(`${colors.cyan}------------------------${colors.reset}`);
+      for (let i = 0; i < numTransfers; i++) {
+        await transferPHRS(wallet, provider, i, jwt);
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+      }
+
+      console.log(`\n${colors.cyan}------------------------${colors.reset}`);
+      console.log(`${colors.cyan}WRAP${colors.reset}`);
+      console.log(`${colors.cyan}------------------------${colors.reset}`);
+      for (let i = 0; i < numWraps; i++) {
+        await wrapPHRS(wallet, provider, i, jwt);
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+      }
+
+      console.log(`\n${colors.cyan}------------------------${colors.reset}`);
+      console.log(`${colors.cyan}SWAP${colors.reset}`);
+      console.log(`${colors.cyan}------------------------${colors.reset}`);
+      for (let i = 0; i < numSwaps; i++) {
+        await performSwap(wallet, provider, i, jwt);
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+      }
+
+      console.log(`\n${colors.cyan}------------------------${colors.reset}`);
+      console.log(`${colors.cyan}ADD LP${colors.reset}`);
+      console.log(`${colors.cyan}------------------------${colors.reset}`);
+      for (let i = 0; i < numLPs; i++) {
+        await addLiquidity(wallet, provider, i, jwt);
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+      }
+    }
+
+    logger.success('All actions completed for all wallets!');
+    await countdown(delayMinutes);
+  }
 };
 
-// Start bot
-main();
-
+main().catch(error => {
+  logger.error(`Bot failed: ${error.message}`);
+  process.exit(1);
+});
