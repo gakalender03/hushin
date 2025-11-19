@@ -36,19 +36,13 @@ const logger = {
 // ----------------------
 // EIP-1559 SAFE GAS OPTIONS HELPER
 // ----------------------
-const buildGasOptions = async (provider) => {
-  const feeData = await provider.getFeeData();
-  // prefer EIP-1559 fields when present, fallback to gasPrice
-  if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
-    return {
-      maxFeePerGas: feeData.maxFeePerGas,
-      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
-    };
-  }
+// ALWAYS use static 1.5 gwei
+const buildGasOptions = async () => {
   return {
-    gasPrice: feeData.gasPrice || ethers.parseUnits('1', 'gwei'),
+    gasPrice: ethers.parseUnits('1.5', 'gwei')
   };
 };
+
 // ----------------------
 
 const RPC_URL = process.env.RPC_URL;
@@ -416,11 +410,12 @@ const transferPHRS = async (wallet, provider, index, jwt) => {
 
     const gasOpts = await buildGasOptions(provider);
     const tx = await wallet.sendTransaction({
-      to: toAddress,
-      value: required,
-      gasLimit: 21000,
-      ...gasOpts,
-    });
+     to: toAddress,
+     value: required,
+     gasLimit: 21000,
+     gasPrice: ethers.parseUnits('1.5', 'gwei')
+});
+
 
     logger.loading(`Transfer transaction ${index + 1} sent, waiting for confirmation...`);
     const receipt = await waitForTransactionWithRetry(provider, tx.hash);
