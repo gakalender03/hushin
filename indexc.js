@@ -754,7 +754,7 @@ const main = async () => {
     return;
   }
 
-  const numTransfers = 10;
+  const numTransfers = 91;
   const numWraps = 10;
   const numSwaps = 10;
   const numLPs = 10;
