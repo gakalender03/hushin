@@ -1,4 +1,4 @@
-name: Run Node.js Script from Private Repo
+name: check1.js
 
 on:
 #  push:
