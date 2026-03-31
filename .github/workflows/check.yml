@@ -11,7 +11,7 @@ jobs:
 
     steps:
     - name: Checkout public repo
-      uses: actions/checkout@v3  # This checks out the public repo
+      uses: actions/checkout@v5  # This checks out the public repo
 
     
     - name: Set up Node.js
