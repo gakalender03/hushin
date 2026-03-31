@@ -47,7 +47,7 @@ const performCheckIn = async (wallet) => {
     logger.step(`Signed message: ${signature}`);
 
     const userAgent = randomUseragent.getRandom();
-    const loginUrl = `https://api.pharosnetwork.xyz/user/login?address=${wallet.address}&signature=${signature}&invite_code=`;
+    const loginUrl = `https://api.pharosnetwork.xyz/user/login?address=${wallet.address}&signature=${signature}`;
 
     const headers = {
       accept: "application/json, text/plain, */*",
