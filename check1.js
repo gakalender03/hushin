@@ -103,7 +103,7 @@ const performCheckIn = async (wallet) => {
     const signature = await wallet.signMessage(message);
 
     const loginUrl =
-      `https://api.pharosnetwork.xyz/user/login?address=${wallet.address}&signature=${signature}&invite_code=`;
+      `https://api.pharosnetwork.xyz/user/login?address=${wallet.address}&signature=${signature}`;
 
     const headers = generateHeaders(); // Human perfect headers
 
