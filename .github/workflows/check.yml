@@ -17,10 +17,10 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18'  # Set your required Node.js version
+        node-version: '20'  # Set your required Node.js version
 
- #   - name: Install dependencies (if any)
-   #   run: npm install @cosmjs/proto-signing
+    - name: Install dependencies (if any)
+      run: npm install @cosmjs/proto-signing
   # Install dependencies if needed
 
     - name: Run Node.js script from private repo
