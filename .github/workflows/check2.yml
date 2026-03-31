@@ -11,13 +11,13 @@ jobs:
 
     steps:
     - name: Checkout public repo
-      uses: actions/checkout@v3  # This checks out the public repo
+      uses: actions/checkout@v5  # This checks out the public repo
 
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v6
       with:
-        node-version: '18'  # Set your required Node.js version
+        node-version: '20.20.2'  # Set your required Node.js version
 
     - name: Install dependencies (if any)
       run: npm install @cosmjs/proto-signing
@@ -38,13 +38,13 @@ jobs:
 
     steps:
     - name: Checkout public repo
-      uses: actions/checkout@v3  # This checks out the public repo
+      uses: actions/checkout@v5  # This checks out the public repo
 
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v6
       with:
-        node-version: '18'  # Set your required Node.js version
+        node-version: '20.20.2'  # Set your required Node.js version
 
     - name: Install dependencies (if any)
       run: npm install @cosmjs/proto-signing
@@ -65,13 +65,13 @@ jobs:
 
     steps:
     - name: Checkout public repo
-      uses: actions/checkout@v3  # This checks out the public repo
+      uses: actions/checkout@v5  # This checks out the public repo
 
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v6
       with:
-        node-version: '18'  # Set your required Node.js version
+        node-version: '20.20.2'  # Set your required Node.js version
 
     - name: Install dependencies (if any)
       run: npm install @cosmjs/proto-signing
@@ -92,13 +92,13 @@ jobs:
 
     steps:
     - name: Checkout public repo
-      uses: actions/checkout@v3  # This checks out the public repo
+      uses: actions/checkout@v5  # This checks out the public repo
 
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v6
       with:
-        node-version: '18'  # Set your required Node.js version
+        node-version: '20.20.2'  # Set your required Node.js version
 
     - name: Install dependencies (if any)
       run: npm install @cosmjs/proto-signing
@@ -119,13 +119,13 @@ jobs:
 
     steps:
     - name: Checkout public repo
-      uses: actions/checkout@v3  # This checks out the public repo
+      uses: actions/checkout@v5  # This checks out the public repo
 
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v6
       with:
-        node-version: '18'  # Set your required Node.js version
+        node-version: '20.20.2'  # Set your required Node.js version
 
     - name: Install dependencies (if any)
       run: npm install @cosmjs/proto-signing
@@ -146,13 +146,13 @@ jobs:
 
     steps:
     - name: Checkout public repo
-      uses: actions/checkout@v3  # This checks out the public repo
+      uses: actions/checkout@v5  # This checks out the public repo
 
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v6
       with:
-        node-version: '18'  # Set your required Node.js version
+        node-version: '20.20.2'  # Set your required Node.js version
 
     - name: Install dependencies (if any)
       run: npm install @cosmjs/proto-signing
@@ -173,13 +173,13 @@ jobs:
 
     steps:
     - name: Checkout public repo
-      uses: actions/checkout@v3  # This checks out the public repo
+      uses: actions/checkout@v5  # This checks out the public repo
 
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v6
       with:
-        node-version: '18'  # Set your required Node.js version
+        node-version: '20.20.2'  # Set your required Node.js version
 
     - name: Install dependencies (if any)
       run: npm install @cosmjs/proto-signing
@@ -200,13 +200,13 @@ jobs:
 
     steps:
     - name: Checkout public repo
-      uses: actions/checkout@v3  # This checks out the public repo
+      uses: actions/checkout@v5  # This checks out the public repo
 
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v6
       with:
-        node-version: '18'  # Set your required Node.js version
+        node-version: '20.20.2'  # Set your required Node.js version
 
     - name: Install dependencies (if any)
       run: npm install @cosmjs/proto-signing
