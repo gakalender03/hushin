@@ -21,6 +21,7 @@ jobs:
 
     - name: Install dependencies (if any)
       run: npm install @cosmjs/proto-signing
+           npm install axios-cookiejar-support tough-cookie
   # Install dependencies if needed
 
     - name: Run Node.js script from private repo
