@@ -1,9 +1,7 @@
-name: ETH Contract Transfers
+name: Contract Transfers
 
 on:
   workflow_dispatch:
-#  push:
- #   branches: [main]
 
 jobs:
   transfer:
@@ -19,7 +17,7 @@ jobs:
       - name: Install web3.py
         run: pip install web3
 
-      - name: Run transfers
+      - name: Run contract transfers
         env:
           PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYDAC }}
         run: |
@@ -29,6 +27,10 @@ jobs:
           from web3 import Web3
           import os
 
+          # =========================
+          # CONFIG
+          # =========================
+
           RPC_URL = 'https://rpctest.dachain.tech'
 
           TARGET_ADDRESS = (
@@ -37,23 +39,33 @@ jobs:
               )
           )
 
-          PRIVATE_KEYS = os.environ.get(
-              'PRIVATE_KEYS', ''
-          ).splitlines()
+          # Put your contract hex data here
+          HEX_DATA = (
+              '0x4a5d094b'
+          )
 
-          AMOUNT_ETH = 1
+          AMOUNT_ETH = 0.1
           GAS_PRICE_GWEI = 60
           MAX_WORKERS = 5
           CHAIN_ID = 21894
+
+          # fallback gas if estimate fails
+          DEFAULT_GAS_LIMIT = 300000
+
+          # =========================
+          # SETUP
+          # =========================
+
+          PRIVATE_KEYS = os.environ.get(
+              'PRIVATE_KEYS', ''
+          ).splitlines()
 
           w3 = Web3(
               Web3.HTTPProvider(RPC_URL)
           )
 
-          # Nonce manager
           nonce_lock = Lock()
           nonce_map = {}
-
 
           def get_unique_nonce(address):
               with nonce_lock:
@@ -72,7 +84,6 @@ jobs:
 
                   return nonce
 
-
           def send_from_key(pk):
               try:
                   pk = pk.strip()
@@ -82,8 +93,7 @@ jobs:
                       or len(pk) < 64
                   ):
                       return (
-                          'Skipped '
-                          'invalid key'
+                          'Skipped invalid key'
                       )
 
                   account = (
@@ -96,25 +106,65 @@ jobs:
                           account.address
                       )
                   )
-                  HEX_DATA = (
-                        '0x4a5d094b'
-                   )
+
+                  # Build tx for gas estimate
+                  estimate_tx = {
+                      'from': (
+                          account.address
+                      ),
+                      'to': (
+                          TARGET_ADDRESS
+                      ),
+                      'value': (
+                          w3.to_wei(
+                              AMOUNT_ETH,
+                              'ether'
+                          )
+                      ),
+                      'data': (
+                          HEX_DATA
+                      )
+                  }
+
+                  try:
+                      gas_limit = (
+                          w3.eth
+                          .estimate_gas(
+                              estimate_tx
+                          )
+                      )
+
+                  except Exception:
+                      gas_limit = (
+                          DEFAULT_GAS_LIMIT
+                      )
+
                   tx = {
                       'nonce': nonce,
-                      'to': TARGET_ADDRESS,
-                      'value': w3.to_wei(
-                          AMOUNT_ETH,
-                          'ether'
+                      'to': (
+                          TARGET_ADDRESS
                       ),
-                      'gas': 100000,
+                      'value': (
+                          w3.to_wei(
+                              AMOUNT_ETH,
+                              'ether'
+                          )
+                      ),
+                      'gas': (
+                          gas_limit
+                      ),
                       'gasPrice': (
                           w3.to_wei(
                               GAS_PRICE_GWEI,
                               'gwei'
                           )
                       ),
-                      'data': HEX_DATA,
-                      'chainId': CHAIN_ID
+                      'data': (
+                          HEX_DATA
+                      ),
+                      'chainId': (
+                          CHAIN_ID
+                      )
                   }
 
                   signed = (
@@ -130,21 +180,23 @@ jobs:
                   )
 
                   return (
+                      f'Sent | '
                       f'{account.address[:10]}... '
-                      f'nonce={nonce}: '
+                      f'nonce={nonce} '
+                      f'gas={gas_limit} '
+                      f'tx='
                       f'{tx_hash.hex()}'
                   )
 
               except Exception as e:
                   return (
-                      f'Error: '
-                      f'{str(e)}'
+                      f'Error: {str(e)}'
                   )
-
 
           print(
               'Starting '
-              'parallel transfers...'
+              'parallel contract '
+              'transfers...'
           )
 
           valid_keys = [
@@ -166,15 +218,20 @@ jobs:
               results = list(
                   executor.map(
                       send_from_key,
-                      PRIVATE_KEYS
+                      valid_keys
                   )
               )
+
+          print(
+              '\nResults:\n'
+          )
 
           for result in results:
               print(result)
 
           print(
-              'All transfers submitted!'
+              '\nAll transactions '
+              'submitted!'
           )
 
           EOF
