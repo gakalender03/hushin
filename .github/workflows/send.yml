@@ -25,13 +25,16 @@ jobs:
         run: |
           python3 << 'EOF'
           from concurrent.futures import ThreadPoolExecutor
+          from threading import Lock
           from web3 import Web3
           import os
 
           RPC_URL = 'https://rpctest.dachain.tech'
 
-          TARGET_ADDRESS = Web3.to_checksum_address(
-              '0x8d874a0b79a4ae8d44131aa1afb0deec57f30627'
+          TARGET_ADDRESS = (
+              Web3.to_checksum_address(
+                  '0x8d874a0b79a4ae8d44131aa1afb0deec57f30627'
+              )
           )
 
           PRIVATE_KEYS = os.environ.get(
@@ -43,19 +46,55 @@ jobs:
           MAX_WORKERS = 5
           CHAIN_ID = 21894
 
-          w3 = Web3(Web3.HTTPProvider(RPC_URL))
+          w3 = Web3(
+              Web3.HTTPProvider(RPC_URL)
+          )
+
+          # Nonce manager
+          nonce_lock = Lock()
+          nonce_map = {}
+
+
+          def get_unique_nonce(address):
+              with nonce_lock:
+
+                  if address not in nonce_map:
+                      nonce_map[address] = (
+                          w3.eth
+                          .get_transaction_count(
+                              address,
+                              'pending'
+                          )
+                      )
+
+                  nonce = nonce_map[address]
+                  nonce_map[address] += 1
+
+                  return nonce
 
 
           def send_from_key(pk):
               try:
                   pk = pk.strip()
 
-                  if not pk or len(pk) < 64:
-                      return 'Skipped invalid key'
+                  if (
+                      not pk
+                      or len(pk) < 64
+                  ):
+                      return (
+                          'Skipped '
+                          'invalid key'
+                      )
 
-                  account = w3.eth.account.from_key(pk)
-                  nonce = w3.eth.get_transaction_count(
-                      account.address
+                  account = (
+                      w3.eth.account
+                      .from_key(pk)
+                  )
+
+                  nonce = (
+                      get_unique_nonce(
+                          account.address
+                      )
                   )
 
                   tx = {
@@ -66,9 +105,11 @@ jobs:
                           'ether'
                       ),
                       'gas': 21000,
-                      'gasPrice': w3.to_wei(
-                          GAS_PRICE_GWEI,
-                          'gwei'
+                      'gasPrice': (
+                          w3.to_wei(
+                              GAS_PRICE_GWEI,
+                              'gwei'
+                          )
                       ),
                       'chainId': CHAIN_ID
                   }
@@ -86,21 +127,32 @@ jobs:
                   )
 
                   return (
-                      f'{account.address[:10]}...: '
+                      f'{account.address[:10]}... '
+                      f'nonce={nonce}: '
                       f'{tx_hash.hex()}'
                   )
 
               except Exception as e:
-                  return f'Error: {str(e)}'
+                  return (
+                      f'Error: '
+                      f'{str(e)}'
+                  )
 
 
           print(
-              'Starting parallel transfers...'
+              'Starting '
+              'parallel transfers...'
           )
+
+          valid_keys = [
+              k for k
+              in PRIVATE_KEYS
+              if k.strip()
+          ]
 
           print(
               f'Found '
-              f'{len([k for k in PRIVATE_KEYS if k.strip()])} '
+              f'{len(valid_keys)} '
               f'valid keys'
           )
 
@@ -121,4 +173,5 @@ jobs:
           print(
               'All transfers submitted!'
           )
+
           EOF
