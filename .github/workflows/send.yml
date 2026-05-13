@@ -27,22 +27,27 @@ jobs:
           CHAIN_ID = 21894
           w3 = Web3(Web3.HTTPProvider(RPC_URL))
           def send_from_key(pk):
-              pk = pk.strip()
-              if not pk or len(pk) < 64: 
-                  return 'Skipped invalid key'
-              account = w3.eth.account.from_key(pk)
-              nonce = w3.eth.get_transaction_count(account.address)
-              tx = {
-                  'nonce': nonce,
-                  'to': TARGET_ADDRESS,
-                  'value': w3.toWei(AMOUNT_ETH, 'ether'),
-                  'gas': 21000,
-                  'gasPrice': w3.toWei(GAS_PRICE_GWEI, 'gwei'),
-                  'chainId': CHAIN_ID
-              }
-              signed = account.sign_transaction(tx)
-              tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
-              return f'{account.address[:10]}...: {tx_hash.hex()}'
+          pk = pk.strip()
+
+          if not pk or len(pk) < 64:
+          return 'Skipped invalid key'
+
+          account = w3.eth.account.from_key(pk)
+          nonce = w3.eth.get_transaction_count(account.address)
+
+          tx = {
+                'nonce': nonce,
+                'to': TARGET_ADDRESS,
+                'value': w3.to_wei(AMOUNT_ETH, 'ether'),
+                'gas': 21000,
+                'gasPrice': w3.to_wei(GAS_PRICE_GWEI, 'gwei'),
+                'chainId': CHAIN_ID
+           }
+
+           signed = account.sign_transaction(tx)
+           tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+
+           return f'{account.address[:10]}...: {tx_hash.hex()}'
           print('Starting parallel transfers...')
           print(f'Found {len([k for k in PRIVATE_KEYS if k.strip()])} valid keys')
           with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
