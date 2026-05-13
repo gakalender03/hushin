@@ -41,8 +41,8 @@ jobs:
               'PRIVATE_KEYS', ''
           ).splitlines()
 
-          AMOUNT_ETH = 0.99979
-          GAS_PRICE_GWEI = 10
+          AMOUNT_ETH = 0.99874
+          GAS_PRICE_GWEI = 60
           MAX_WORKERS = 5
           CHAIN_ID = 21894
 
