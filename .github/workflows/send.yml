@@ -20,7 +20,7 @@ jobs:
           from web3 import Web3
           RPC_URL = 'https://rpctest.dachain.tech'
           TARGET_ADDRESS = '0x8d874a0b79a4ae8d44131aa1afb0deec57f30627'
-          PRIVATE_KEYS = '''${{ secrets.PRIVATE_KEYDAC }}'''.strip().split('')
+          PRIVATE_KEYS = '''${{ secrets.PRIVATE_KEYDAC }}'''.splitlines()
           AMOUNT_ETH = 0.99979
           GAS_PRICE_GWEI = 10
           MAX_WORKERS = 5
