@@ -33,7 +33,7 @@ jobs:
 
           TARGET_ADDRESS = (
               Web3.to_checksum_address(
-                  '0x8d874a0b79a4ae8d44131aa1afb0deec57f30627'
+                  '0x77bdf62f3ab04f0faa76ff7ca2e4794c202f7594'
               )
           )
 
@@ -41,8 +41,8 @@ jobs:
               'PRIVATE_KEYS', ''
           ).splitlines()
 
-          AMOUNT_ETH = 0.99874
-          GAS_PRICE_GWEI = 60
+          AMOUNT_ETH = 0.996472
+          GAS_PRICE_GWEI = 168
           MAX_WORKERS = 5
           CHAIN_ID = 21894
 
