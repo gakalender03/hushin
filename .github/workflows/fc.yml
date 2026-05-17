@@ -1,10 +1,10 @@
-name: Deploy Solana Token Devnet
+name: Deploy Solana Token (Devnet)
 
 on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy-token:
     runs-on: ubuntu-latest
 
     env:
@@ -15,13 +15,13 @@ jobs:
       TOKEN_SYMBOL: MTK
       TOKEN_DECIMALS: 6
       TOTAL_SUPPLY: 1000000
-      MINT_LIMIT: 10000
+      MINT_LIMIT: 1000000
 
-      # Phantom private key (base58 string)
+      # GitHub Secret
       PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -35,8 +35,7 @@ jobs:
           const {
             Connection,
             Keypair,
-            clusterApiUrl,
-            PublicKey
+            clusterApiUrl
           } = require("@solana/web3.js");
 
           const {
@@ -45,61 +44,122 @@ jobs:
             mintTo
           } = require("@solana/spl-token");
 
-          const bs58 = require("bs58");
+          const {
+            Metaplex,
+            keypairIdentity
+          } = require("@metaplex-foundation/js");
+
+          // Fix bs58 import
+          const bs58Module = require("bs58");
+          const bs58 =
+            bs58Module.default || bs58Module;
 
           async function main() {
-            const connection = new Connection(
-              process.env.RPC_URL,
-              "confirmed"
-            );
-
-            const secretKey = bs58.decode(
-              process.env.PRIVATE_KEY.trim()
-            );
-
-            const wallet = Keypair.fromSecretKey(secretKey);
-
-            console.log("Wallet:", wallet.publicKey.toBase58());
-
-            // Devnet SOL
-            try {
-              const sig = await connection.requestAirdrop(
-                wallet.publicKey,
-                2e9
+            const connection =
+              new Connection(
+                process.env.RPC_URL,
+                "confirmed"
               );
-              await connection.confirmTransaction(sig);
-            } catch {}
 
-            const decimals = Number(
-              process.env.TOKEN_DECIMALS
+            // Decode Phantom private key
+            const secretKey =
+              bs58.decode(
+                process.env.PRIVATE_KEY.trim()
+              );
+
+            const wallet =
+              Keypair.fromSecretKey(
+                Uint8Array.from(secretKey)
+              );
+
+            console.log(
+              "Wallet:",
+              wallet.publicKey.toBase58()
             );
 
-            const totalSupply = Number(
-              process.env.TOTAL_SUPPLY
-            );
+            // Metaplex setup
+            const metaplex =
+              Metaplex.make(connection)
+                .use(
+                  keypairIdentity(wallet)
+                );
 
-            const mintLimit = Number(
-              process.env.MINT_LIMIT
-            );
+            // Airdrop devnet SOL
+            try {
+              console.log(
+                "Requesting devnet SOL..."
+              );
 
-            if (totalSupply > mintLimit) {
-              throw new Error(
-                "TOTAL_SUPPLY exceeds MINT_LIMIT"
+              const sig =
+                await connection.requestAirdrop(
+                  wallet.publicKey,
+                  2e9
+                );
+
+              await connection.confirmTransaction(
+                sig,
+                "confirmed"
+              );
+
+              console.log(
+                "Airdrop complete"
+              );
+            } catch (err) {
+              console.log(
+                "Airdrop skipped:",
+                err.message
               );
             }
 
-            // Create token mint
-            const mint = await createMint(
-              connection,
-              wallet,
-              wallet.publicKey,
-              wallet.publicKey,
-              decimals
+            const decimals =
+              Number(
+                process.env
+                  .TOKEN_DECIMALS
+              );
+
+            const totalSupply =
+              Number(
+                process.env
+                  .TOTAL_SUPPLY
+              );
+
+            const mintLimit =
+              Number(
+                process.env
+                  .MINT_LIMIT
+              );
+
+            // Mint limit check
+            if (
+              totalSupply >
+              mintLimit
+            ) {
+              throw new Error(
+                `TOTAL_SUPPLY (${totalSupply})
+                 exceeds MINT_LIMIT (${mintLimit})`
+              );
+            }
+
+            console.log(
+              "Creating token..."
             );
 
-            console.log("Mint Address:", mint.toBase58());
+            // Create SPL token mint
+            const mint =
+              await createMint(
+                connection,
+                wallet,
+                wallet.publicKey,
+                wallet.publicKey,
+                decimals
+              );
 
-            // Token account
+            console.log(
+              "Token Mint:",
+              mint.toBase58()
+            );
+
+            // Create ATA
             const tokenAccount =
               await getOrCreateAssociatedTokenAccount(
                 connection,
@@ -108,9 +168,21 @@ jobs:
                 wallet.publicKey
               );
 
+            console.log(
+              "Token Account:",
+              tokenAccount.address.toBase58()
+            );
+
             // Mint supply
             const amount =
-              totalSupply * Math.pow(10, decimals);
+              BigInt(totalSupply) *
+              BigInt(
+                10 ** decimals
+              );
+
+            console.log(
+              "Minting supply..."
+            );
 
             await mintTo(
               connection,
@@ -122,23 +194,39 @@ jobs:
             );
 
             console.log(
-              "Supply minted:",
-              totalSupply
+              "Success!"
             );
 
             console.log(
-              "Token:",
+              "Token Address:",
               mint.toBase58()
+            );
+
+            console.log(
+              "Decimals:",
+              decimals
+            );
+
+            console.log(
+              "Total Supply:",
+              totalSupply
             );
           }
 
-          main().catch(console.error);
+          main().catch(err => {
+            console.error(err);
+            process.exit(1);
+          });
           EOF
 
       - name: Install dependencies
         run: |
           npm init -y
-          npm install @solana/web3.js @solana/spl-token @metaplex-foundation/js bs58
+          npm install \
+            @solana/web3.js \
+            @solana/spl-token \
+            @metaplex-foundation/js \
+            bs58
 
-      - name: Deploy token
+      - name: Run deployment
         run: node deploy.js
