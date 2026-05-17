@@ -1,4 +1,4 @@
-name: Deploy BIOH3 Token + Mint 10 Supply
+name: Deploy BIOH3 Token (Fixed Supply 10)
 
 on:
   workflow_dispatch:
@@ -18,112 +18,155 @@ jobs:
           npm init -y
           npm install @solana/web3.js @solana/spl-token @metaplex-foundation/js bs58
 
-      - name: Deploy Token + Mint 10
+      - name: Deploy Token + Mint 10 Supply
         env:
           SOLANA_PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
           SOLANA_RPC: https://api.devnet.solana.com
         run: |
           node -e "
           const crypto = require('crypto');
-          const { Connection, Keypair, clusterApiUrl } = require('@solana/web3.js');
+          const {
+            Connection,
+            Keypair,
+            clusterApiUrl
+          } = require('@solana/web3.js');
+
           const {
             createMint,
             getOrCreateAssociatedTokenAccount,
-            mintTo
+            mintTo,
+            setAuthority,
+            AuthorityType
           } = require('@solana/spl-token');
 
           const { Metaplex, keypairIdentity } = require('@metaplex-foundation/js');
-          const bs58 = require("bs58");
 
-          // -------------------------
-          // UNIQUE NAME
-          // -------------------------
+          const bs58Module = require('bs58');
+
+          // ----------------------------
+          // SAFE bs58 decode (fixes ALL versions)
+          // ----------------------------
+          const decode =
+            bs58Module.decode || bs58Module.default?.decode;
+
+          if (!decode) throw new Error('bs58 decode not found');
+
+          // ----------------------------
+          // UNIQUE NAME/SYMBOL
+          // ----------------------------
           const rand = crypto.randomBytes(3).toString('hex');
           const name = \`BIOH3-\${rand}\`;
           const symbol = \`B3\${rand.toUpperCase()}\`;
 
-          // -------------------------
+          // ----------------------------
           // WALLET
-          // -------------------------
-          const secret = Uint8Array.from(bs58.decode(process.env.SOLANA_PRIVATE_KEY));
+          // ----------------------------
+          const secret = Uint8Array.from(
+            decode(process.env.SOLANA_PRIVATE_KEY)
+          );
+
           const payer = Keypair.fromSecretKey(secret);
 
-          // -------------------------
+          // ----------------------------
           // CONNECTION
-          // -------------------------
+          // ----------------------------
           const connection = new Connection(
             process.env.SOLANA_RPC || clusterApiUrl('devnet'),
             'confirmed'
           );
 
-          const metaplex = Metaplex.make(connection).use(keypairIdentity(payer));
+          const metaplex = Metaplex
+            .make(connection)
+            .use(keypairIdentity(payer));
 
           (async () => {
-            console.log('Creating SPL Mint...');
+            try {
+              console.log('Creating SPL Mint...');
 
-            // -------------------------
-            // 1. CREATE TOKEN MINT
-            // -------------------------
-            const mint = await createMint(
-              connection,
-              payer,
-              payer.publicKey,
-              null,
-              9 // decimals
-            );
+              // ----------------------------
+              // 1. CREATE MINT
+              // ----------------------------
+              const mint = await createMint(
+                connection,
+                payer,
+                payer.publicKey,
+                payer.publicKey,
+                9
+              );
 
-            console.log('Mint Address:', mint.toBase58());
+              console.log('Mint:', mint.toBase58());
 
-            // -------------------------
-            // 2. CREATE TOKEN ACCOUNT
-            // -------------------------
-            const tokenAccount = await getOrCreateAssociatedTokenAccount(
-              connection,
-              payer,
-              mint,
-              payer.publicKey
-            );
+              // ----------------------------
+              // 2. TOKEN ACCOUNT
+              // ----------------------------
+              const ata = await getOrCreateAssociatedTokenAccount(
+                connection,
+                payer,
+                mint,
+                payer.publicKey
+              );
 
-            // -------------------------
-            // 3. MINT EXACTLY 10 TOKENS
-            // -------------------------
-            const amount = 10 * (10 ** 9); // 10 tokens with 9 decimals
+              // ----------------------------
+              // 3. MINT EXACTLY 10 TOKENS
+              // ----------------------------
+              await mintTo(
+                connection,
+                payer,
+                mint,
+                ata.address,
+                payer,
+                10 * 1e9
+              );
 
-            await mintTo(
-              connection,
-              payer,
-              mint,
-              tokenAccount.address,
-              payer,
-              amount
-            );
+              console.log('Minted: 10 tokens');
 
-            console.log('✅ Minted 10 tokens');
+              // ----------------------------
+              // 4. FREEZE SUPPLY (IMPORTANT)
+              // prevents further minting
+              // ----------------------------
+              await setAuthority(
+                connection,
+                payer,
+                mint,
+                payer.publicKey,
+                AuthorityType.MintTokens,
+                null
+              );
 
-            // -------------------------
-            // 4. METADATA (Metaplex)
-            // -------------------------
-            const metadata = {
-              name,
-              symbol,
-              description: 'BIOH3 SPL Token (auto minted supply 10)',
-              image: \`https://placehold.co/400x400/png?text=\${encodeURIComponent(name)}\`,
-              attributes: [
-                { trait_type: 'type', value: 'spl-token' },
-                { trait_type: 'supply', value: '10' }
-              ]
-            };
+              console.log('Mint authority revoked (fixed supply)');
 
-            const { uri } = await metaplex.nfts().uploadMetadata(metadata);
+              // ----------------------------
+              // 5. METADATA
+              // ----------------------------
+              const metadata = {
+                name,
+                symbol,
+                description: 'BIOH3 fixed supply token (10 units)',
+                image: \`https://placehold.co/400x400/png?text=\${encodeURIComponent(name)}\`,
+                attributes: [
+                  { trait_type: 'type', value: 'spl-token' },
+                  { trait_type: 'supply', value: '10' },
+                  { trait_type: 'immutable', value: 'true' }
+                ]
+              };
 
-            console.log('Metadata URI:', uri);
+              const { uri } = await metaplex
+                .nfts()
+                .uploadMetadata(metadata);
 
-            console.log('============================');
-            console.log('TOKEN DEPLOYED SUCCESSFULLY');
-            console.log('Name:', name);
-            console.log('Symbol:', symbol);
-            console.log('Mint:', mint.toBase58());
-            console.log('Supply: 10');
-            console.log('============================');
+              console.log('Metadata URI:', uri);
+
+              console.log('==============================');
+              console.log('✅ DEPLOY COMPLETE');
+              console.log('Name:', name);
+              console.log('Symbol:', symbol);
+              console.log('Mint:', mint.toBase58());
+              console.log('Supply: 10 (locked)');
+              console.log('==============================');
+
+            } catch (e) {
+              console.error(e);
+              process.exit(1);
+            }
           })();
           "
