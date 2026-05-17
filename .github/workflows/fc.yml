@@ -23,5 +23,5 @@ jobs:
       - name: Run mint script
         env:
           SOLANA_RPC: https://api.devnet.solana.com
-          PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
+          SOLANA_PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
         run: node mint.js
