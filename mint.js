@@ -12,16 +12,18 @@ const {
   createAssociatedTokenAccountInstruction,
   mintTo,
   TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddress,
 } = require("@solana/spl-token");
 
 const {
   createCreateMetadataAccountV3Instruction,
-  PROGRAM_ID,
 } = require("@metaplex-foundation/mpl-token-metadata");
 
 const bs58 = require("bs58");
 
-// METADATA (same as yours)
+// ----------------------------
+// METADATA - OBES
+// ----------------------------
 const metadata = {
   name: "OBES",
   symbol: "OBES",
@@ -39,12 +41,19 @@ const metadata = {
 };
 
 // ----------------------------
+// METAPLEX METADATA PROGRAM ID
+// ----------------------------
+const METADATA_PROGRAM_ID = new PublicKey(
+  "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+);
+
+// ----------------------------
 // CONNECTION
 // ----------------------------
 const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 
 // ----------------------------
-// WALLET
+// WALLET (from env)
 // ----------------------------
 if (!process.env.SOLANA_PRIVATE_KEY) {
   throw new Error("Missing SOLANA_PRIVATE_KEY env var");
@@ -57,76 +66,73 @@ const payer = Keypair.fromSecretKey(
 console.log("Wallet:", payer.publicKey.toBase58());
 
 // ----------------------------
-// MAIN SCRIPT – ALL IN ONE TX
+// MAIN SCRIPT – ALL IN ONE TRANSACTION
 // ----------------------------
 (async () => {
   try {
-    // 1. CREATE MINT Keypair (known in advance)
+    // 1. GENERATE MINT KEYPAIR
     const mint = Keypair.generate();
     const mintPubkey = mint.publicKey;
 
     console.log("Mint pubkey:", mintPubkey.toBase58());
 
-    // 2. DERIVE ATA (not create it ahead of time)
-    const { getAssociatedTokenAddress } = require("@solana/spl-token");
-
-// derive the ATA (no TX yet)
-const ata = await getAssociatedTokenAddress(
-  mintPubkey,
-  payer.publicKey
-);
+    // 2. DERIVE ASSOCIATED TOKEN ACCOUNT (no TX yet)
+    const ata = await getAssociatedTokenAddress(mintPubkey, payer.publicKey);
     console.log("ATA:", ata.toBase58());
 
-    // 3. METADATA PDA
+    // 3. COMPUTE METADATA PDA
     const [metadataPDA] = PublicKey.findProgramAddressSync(
-      [Buffer.from("metadata"), PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
-      PROGRAM_ID
+      [
+        Buffer.from("metadata"),
+        METADATA_PROGRAM_ID.toBuffer(),
+        mintPubkey.toBuffer(),
+      ],
+      METADATA_PROGRAM_ID
     );
-
     console.log("Metadata PDA:", metadataPDA.toBase58());
 
-    // 4. METADATA URI
+    // 4. METADATA URI (data URI base64 of your JSON)
     const uri =
-      "data:application/json;base64,eyJuYW1lIjoiT0JFUyIsInN5bWJvbCI6Ik9CRVMiLCJkZXNjcmlwdGlvbiI6IkltcHJpbnQgY3JlYXRlZCB3aXRoIE9wZW4gRXhlY3V0aW9uIFN5c3RlbSBieSBOZXRydW4gRm91bmRhdGlvbi4iLCJpbWFnZSI6Imh0dHBzOi8vcGxhY2Vob2xkLmNvLzQwMHg0MDAvdHHJwmentIiwiYXR0cmlidXRlcyI6W3sidHJhaXRfdHlwZSI6InByb3RvY29sIiwidmFsdWUiOiJuZXRydW4ifSx7InRyYWl0X3R5cGUiOiJ0eXBlIiwidmFsdWUiOiJ0b2tlbi1taW50In0seyJ0cmFpdF90eXBlIjoidG9rZW4iLCJ2YWx1ZSI6IjhZN1BmWU5DbXBaNU4ybXBnY2htSkI4Rjdtb0hHUFM2UU1UbXM2U1RVcXAyIn0seyJ0cmFpdF90eXBlIjoic3ltYm9sIiwidmFsdWUiOiJPQkVTIn0seyJ0cmFpdF90eXBlIjoiYW1vdW50IiwidmFsdWUiOiIxMDAwIn1dfQ==";
+      "data:application/json;base64,eyJuYW1lIjoiT0JFUyIsInN5bWJvbCI6Ik9CRVMiLCJkZXNjcmlwdGlvbiI6IkltcHJpbnQgY3JlYXRlZCB3aXRoIE9wZW4gRXhlY3V0aW9uIFN5c3RlbSBieSBOZXRydW4gRm91bmRhdGlvbi4iLCJpbWFnZSI6Imh0dHBzOi8vcGxhY2Vob2xkLmNvLzQwMHg0MDAvdHJhbnNwYXJlbnQvd2hpdGUvcG5nP3RleHQ9T0JFUyUwQTEwMDAmZm9udD1tb250c2VycmF0IiwiYXR0cmlidXRlcyI6W3sidHJhaXRfdHlwZSI6InByb3RvY29sIiwidmFsdWUiOiJuZXRydW4ifSx7InRyYWl0X3R5cGUiOiJ0eXBlIiwidmFsdWUiOiJ0b2tlbi1taW50In0seyJ0cmFpdF90eXBlIjoidG9rZW4iLCJ2YWx1ZSI6IjhZN1BmWU5DbXBaNU4ybXBnY2htSkI4Rjdtb0hHUFM2UU1UbXM2U1RVcXAyIn0seyJ0cmFpdF90eXBlIjoic3ltYm9sIiwidmFsdWUiOiJPQkVTIn0seyJ0cmFpdF90eXBlIjoiYW1vdW50IiwidmFsdWUiOiIxMDAwIn1dfQ==";
 
     // 5. BUILD ONE TRANSACTION
     const tx = new Transaction();
 
-    // 5.1. Initialize mint
+    // 5.1. Initialize mint (2 is the current mint size)
     tx.add(
       createInitializeMint2Instruction(
         mintPubkey,
-        9,
+        9, // decimals
         payer.publicKey,
-        null,
+        null, // freezeAuthority
         TOKEN_PROGRAM_ID
       )
     );
 
-    // 5.2. CREATE ASSOCIATED TOKEN ACCOUNT FOR PAYER (same TX)
+    // 5.2. CREATE ASSOCIATED TOKEN ACCOUNT FOR PAYER
     tx.add(
       createAssociatedTokenAccountInstruction(
-        payer.publicKey,
-        ata,
-        payer.publicKey,
-        mintPubkey,
+        payer.publicKey, // funding account (payer)
+        ata,             // ATA address
+        payer.publicKey, // owner (token holder)
+        mintPubkey,      // mint
         TOKEN_PROGRAM_ID
       )
     );
 
-    // 5.3. Mint tokens to ATA
+    // 5.3. MINT TOKENS TO ATA
     tx.add(
       mintTo(
         TOKEN_PROGRAM_ID,
         mintPubkey,
         ata,
-        payer.publicKey,
-        payer.publicKey,
-        1000 * 10 ** 9
+        payer.publicKey, // mint authority
+        payer.publicKey, // signing authority
+        1000 * 10 ** 9   // 1000 tokens, 9 decimals
       )
     );
 
-    // 5.4. Create metadata account
+    // 5.4. CREATE METADATA ACCOUNT (Metaplex)
     const metadataIx = createCreateMetadataAccountV3Instruction(
       {
         metadata: metadataPDA,
@@ -153,9 +159,14 @@ const ata = await getAssociatedTokenAddress(
     );
     tx.add(metadataIx);
 
-    // 6. SIGN + SEND
-    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    // 6. SIGN AND SEND
+    const { blockhash, lastValidBlockHeight } =
+      await connection.getLatestBlockhash();
+
+    tx.recentBlockhash = blockhash;
     tx.feePayer = payer.publicKey;
+
+    // sign with payer and mint keypair
     tx.sign(payer, mint);
 
     const sig = await sendAndConfirmTransaction(connection, tx, [payer, mint], {
@@ -165,7 +176,7 @@ const ata = await getAssociatedTokenAddress(
     console.log("Mint pubkey:", mintPubkey.toBase58());
     console.log("ATA:", ata.toBase58());
     console.log("Metadata PDA:", metadataPDA.toBase58());
-    console.log("One-TX ✅", sig);
+    console.log("One‑TX signature ✅:", sig);
   } catch (err) {
     console.error("ERROR:", err.message || err);
   }
