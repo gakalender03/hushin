@@ -1,77 +1,144 @@
-name: Deploy Solana Token (Devnet)
+name: Deploy Solana Token Devnet
 
 on:
   workflow_dispatch:
 
 jobs:
-  deploy-token:
+  deploy:
     runs-on: ubuntu-latest
 
     env:
-      SOLANA_NETWORK: devnet
+      RPC_URL: https://api.devnet.solana.com
 
-      # Token config
+      # Token settings
+      TOKEN_NAME: MyToken
+      TOKEN_SYMBOL: MTK
       TOKEN_DECIMALS: 6
       TOTAL_SUPPLY: 1000000
       MINT_LIMIT: 10000
 
-      # Add this in GitHub Secrets
-      # Base58 private key wallet
-      SOLANA_PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
+      # Phantom private key (base58 string)
+      PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Solana CLI
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Create deploy script
         run: |
-          sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          cat > deploy.js << 'EOF'
+          const {
+            Connection,
+            Keypair,
+            clusterApiUrl,
+            PublicKey
+          } = require("@solana/web3.js");
 
-      - name: Install SPL Token CLI
-        run: cargo install spl-token-cli
+          const {
+            createMint,
+            getOrCreateAssociatedTokenAccount,
+            mintTo
+          } = require("@solana/spl-token");
 
-      - name: Configure Solana Devnet
-        run: solana config set --url https://api.devnet.solana.com
+          const bs58 = require("bs58");
 
-      - name: Setup wallet
+          async function main() {
+            const connection = new Connection(
+              process.env.RPC_URL,
+              "confirmed"
+            );
+
+            const secretKey = bs58.decode(
+              process.env.PRIVATE_KEY.trim()
+            );
+
+            const wallet = Keypair.fromSecretKey(secretKey);
+
+            console.log("Wallet:", wallet.publicKey.toBase58());
+
+            // Devnet SOL
+            try {
+              const sig = await connection.requestAirdrop(
+                wallet.publicKey,
+                2e9
+              );
+              await connection.confirmTransaction(sig);
+            } catch {}
+
+            const decimals = Number(
+              process.env.TOKEN_DECIMALS
+            );
+
+            const totalSupply = Number(
+              process.env.TOTAL_SUPPLY
+            );
+
+            const mintLimit = Number(
+              process.env.MINT_LIMIT
+            );
+
+            if (totalSupply > mintLimit) {
+              throw new Error(
+                "TOTAL_SUPPLY exceeds MINT_LIMIT"
+              );
+            }
+
+            // Create token mint
+            const mint = await createMint(
+              connection,
+              wallet,
+              wallet.publicKey,
+              wallet.publicKey,
+              decimals
+            );
+
+            console.log("Mint Address:", mint.toBase58());
+
+            // Token account
+            const tokenAccount =
+              await getOrCreateAssociatedTokenAccount(
+                connection,
+                wallet,
+                mint,
+                wallet.publicKey
+              );
+
+            // Mint supply
+            const amount =
+              totalSupply * Math.pow(10, decimals);
+
+            await mintTo(
+              connection,
+              wallet,
+              mint,
+              tokenAccount.address,
+              wallet,
+              amount
+            );
+
+            console.log(
+              "Supply minted:",
+              totalSupply
+            );
+
+            console.log(
+              "Token:",
+              mint.toBase58()
+            );
+          }
+
+          main().catch(console.error);
+          EOF
+
+      - name: Install dependencies
         run: |
-          mkdir -p ~/.config/solana
-          echo "$SOLANA_PRIVATE_KEY" > ~/.config/solana/id.json
-          chmod 600 ~/.config/solana/id.json
+          npm init -y
+          npm install @solana/web3.js @solana/spl-token @metaplex-foundation/js bs58
 
-      - name: Airdrop Devnet SOL
-        run: |
-          solana airdrop 2 || true
-
-      - name: Create Token
-        id: create_token
-        run: |
-          TOKEN_ADDRESS=$(spl-token create-token \
-            --decimals $TOKEN_DECIMALS \
-            | grep "Creating token" \
-            | awk '{print $3}')
-
-          echo "TOKEN_ADDRESS=$TOKEN_ADDRESS" >> $GITHUB_ENV
-          echo "Created token: $TOKEN_ADDRESS"
-
-      - name: Create Token Account
-        run: |
-          spl-token create-account $TOKEN_ADDRESS
-
-      - name: Mint Limited Supply
-        run: |
-          MINT_AMOUNT=$TOTAL_SUPPLY
-
-          if [ "$MINT_AMOUNT" -gt "$MINT_LIMIT" ]; then
-            echo "Mint exceeds MINT_LIMIT"
-            exit 1
-          fi
-
-          spl-token mint $TOKEN_ADDRESS $MINT_AMOUNT
-
-      - name: Show Token Info
-        run: |
-          echo "Token Address: $TOKEN_ADDRESS"
-          spl-token supply $TOKEN_ADDRESS
-          spl-token display $TOKEN_ADDRESS
+      - name: Deploy token
+        run: node deploy.js
