@@ -9,12 +9,13 @@ const {
   mintTo
 } = require("@solana/spl-token");
 
-const bs58 = require("bs58").default;
+const bs58 = require("bs58");
 
 (async () => {
   const connection = new Connection(process.env.SOLANA_RPC, "confirmed");
 
   // ✅ BASE58 PRIVATE KEY SUPPORT
+ 
   const secretKey = bs58.decode(process.env.PRIVATE_KEY);
   const payer = Keypair.fromSecretKey(secretKey);
 
