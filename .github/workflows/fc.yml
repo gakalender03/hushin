@@ -25,7 +25,7 @@ jobs:
         run: |
           node -e "
           const crypto = require('crypto');
-          const { decode } = require('bs58');
+          const bs58 = require('bs58');
           const {
             Connection,
             Keypair,
@@ -47,7 +47,9 @@ jobs:
           // -----------------------------
           // 2. WALLET
           // -----------------------------
-          const secret = Uint8Array.from(decode(process.env.SOLANA_PRIVATE_KEY));
+          const secret = Uint8Array.from(
+          bs58.default.decode(process.env.SOLANA_PRIVATE_KEY)
+          );
           const keypair = Keypair.fromSecretKey(secret);
 
           // -----------------------------
