@@ -1,192 +1,26 @@
-name: BIOH3 Custom Protocol Deploy (Token + Custom Instruction)
+name: Auto Mint Token (Devnet)
 
 on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  mint:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
-        run: |
-          npm init -y
-          npm install @solana/web3.js @solana/spl-token bs58
+        run: npm install @solana/web3.js @solana/spl-token bs58
 
-      - name: Deploy Token + Send Custom Instruction
+      - name: Run mint script
         env:
-          SOLANA_PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
           SOLANA_RPC: https://api.devnet.solana.com
-        run: |
-          node -e "
-          const crypto = require('crypto');
-          const {
-            Connection,
-            Keypair,
-            Transaction,
-            TransactionInstruction,
-            PublicKey
-          } = require('@solana/web3.js');
-
-          const {
-            createMint,
-            getOrCreateAssociatedTokenAccount,
-            mintTo,
-            setAuthority,
-            AuthorityType
-          } = require('@solana/spl-token');
-
-          const bs58 = require('bs58');
-
-          // -----------------------------
-          // SAFE BASE58 DECODER
-          // -----------------------------
-          const decode =
-            bs58.decode || bs58.default?.decode;
-
-          const secret = Uint8Array.from(
-            decode(process.env.SOLANA_PRIVATE_KEY)
-          );
-
-          const payer = Keypair.fromSecretKey(secret);
-
-          const connection = new Connection(
-            process.env.SOLANA_RPC,
-            'confirmed'
-          );
-
-          // -----------------------------
-          // RANDOM BIOH3 IDENTITY
-          // -----------------------------
-          const rand = crypto.randomBytes(3).toString('hex');
-          const name = \`BIOH3-\${rand}\`;
-          const symbol = \`B3\${rand.toUpperCase()}\`;
-
-          // -----------------------------
-          // METADATA BUILDER
-          // -----------------------------
-          function buildMetadata(obj) {
-            const json = JSON.stringify(obj);
-            const base64 = Buffer.from(json).toString('base64');
-            return 'data:application/json;base64,' + base64;
-          }
-
-          // -----------------------------
-          // U32 LE ENCODER
-          // -----------------------------
-          function u32(num) {
-            const b = Buffer.alloc(4);
-            b.writeUInt32LE(num, 0);
-            return b;
-          }
-
-          // -----------------------------
-          // CUSTOM INSTRUCTION ENCODER
-          // (MATCHES YOUR EXPLORER FORMAT)
-          // -----------------------------
-          function encodeInstruction() {
-
-            const metadata = buildMetadata({
-              name,
-              symbol,
-              description: 'Imprint created with Open Execution System by Netrun Foundation.',
-              image: 'https://placehold.co/400x400/png?text=' + encodeURIComponent(name),
-              attributes: [
-                { trait_type: 'protocol', value: 'netrun' },
-                { trait_type: 'type', value: 'token-mint' },
-                { trait_type: 'symbol', value: symbol },
-                { trait_type: 'amount', value: '10' }
-              ]
-            });
-
-            const buf = Buffer.concat([
-              Buffer.from([0x14]),          // instruction id
-              u32(5),                       // flags = 00050000
-              Buffer.from(symbol),          // symbol
-              u32(0x289),                   // numeric field (example)
-              Buffer.from(metadata),        // base64 JSON blob
-              u32(10)                       // supply = 10
-            ]);
-
-            return buf;
-          }
-
-          // -----------------------------
-          // MAIN FLOW
-          // -----------------------------
-          (async () => {
-            console.log('Name:', name);
-            console.log('Symbol:', symbol);
-
-            // 1. CREATE TOKEN MINT
-            const mint = await createMint(
-              connection,
-              payer,
-              payer.publicKey,
-              payer.publicKey,
-              9
-            );
-
-            console.log('Mint:', mint.toBase58());
-
-            // 2. TOKEN ACCOUNT
-            const ata = await getOrCreateAssociatedTokenAccount(
-              connection,
-              payer,
-              mint,
-              payer.publicKey
-            );
-
-            // 3. MINT EXACTLY 10 TOKENS
-            await mintTo(
-              connection,
-              payer,
-              mint,
-              ata.address,
-              payer,
-              10 * 1e9
-            );
-
-            console.log('Minted 10 tokens');
-
-            // 4. FREEZE SUPPLY (NO MORE MINTING)
-            await setAuthority(
-              connection,
-              payer,
-              mint,
-              payer.publicKey,
-              AuthorityType.MintTokens,
-              null
-            );
-
-            console.log('Mint authority revoked');
-
-            // 5. SEND CUSTOM INSTRUCTION (YOUR HEX FORMAT)
-            const ix = new TransactionInstruction({
-              programId: new PublicKey('CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d'),
-              keys: [
-                { pubkey: payer.publicKey, isSigner: true, isWritable: true }
-              ],
-              data: encodeInstruction()
-            });
-
-            const tx = new Transaction().add(ix);
-
-            const sig = await connection.sendTransaction(tx, [payer]);
-
-            console.log('Custom instruction sent:', sig);
-
-            console.log('==============================');
-            console.log('DONE');
-            console.log('Name:', name);
-            console.log('Symbol:', symbol);
-            console.log('Mint:', mint.toBase58());
-            console.log('Supply: 10');
-            console.log('==============================');
-          })();
-          "
+          PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
+        run: node mint.js
