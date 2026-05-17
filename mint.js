@@ -68,11 +68,13 @@ console.log("Wallet:", payer.publicKey.toBase58());
     console.log("Mint pubkey:", mintPubkey.toBase58());
 
     // 2. DERIVE ATA (not create it ahead of time)
-    const ata = PublicKey.findAssociatedTokenAddressSync(
-      mintPubkey,
-      payer.publicKey
-    );
+    const { getAssociatedTokenAddress } = require("@solana/spl-token");
 
+// derive the ATA (no TX yet)
+const ata = await getAssociatedTokenAddress(
+  mintPubkey,
+  payer.publicKey
+);
     console.log("ATA:", ata.toBase58());
 
     // 3. METADATA PDA
