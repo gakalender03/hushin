@@ -9,7 +9,7 @@ const {
 
 const {
   createInitializeMint2Instruction,
-  getOrCreateAssociatedTokenAccount,
+  createAssociatedTokenAccountInstruction,
   mintTo,
   TOKEN_PROGRAM_ID,
 } = require("@solana/spl-token");
@@ -21,9 +21,7 @@ const {
 
 const bs58 = require("bs58");
 
-// ----------------------------
-// METADATA
-// ----------------------------
+// METADATA (same as yours)
 const metadata = {
   name: "OBES",
   symbol: "OBES",
@@ -46,7 +44,7 @@ const metadata = {
 const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 
 // ----------------------------
-// ✅ BASE58 PRIVATE KEY LOADING
+// WALLET
 // ----------------------------
 if (!process.env.SOLANA_PRIVATE_KEY) {
   throw new Error("Missing SOLANA_PRIVATE_KEY env var");
@@ -69,55 +67,64 @@ console.log("Wallet:", payer.publicKey.toBase58());
 
     console.log("Mint pubkey:", mintPubkey.toBase58());
 
-    // 2. COMPUTE ATA (so we can build the mintTo IX upfront)
-    const tokenAccount = await getOrCreateAssociatedTokenAccount(
-      connection,
-      payer,
+    // 2. DERIVE ATA (not create it ahead of time)
+    const ata = PublicKey.findAssociatedTokenAddressSync(
       mintPubkey,
-      payer.publicKey,
-      false // don’t send TX yet, just get the ATA address
+      payer.publicKey
     );
 
-    console.log("ATA:", tokenAccount.address.toBase58());
+    console.log("ATA:", ata.toBase58());
 
     // 3. METADATA PDA
     const [metadataPDA] = PublicKey.findProgramAddressSync(
-      [Buffer.from("metadata"), METADATA_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
-      METADATA_PROGRAM_ID
+      [Buffer.from("metadata"), PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
+      PROGRAM_ID
     );
 
     console.log("Metadata PDA:", metadataPDA.toBase58());
 
-    // 4. METADATA URI (data URI base64 of your JSON)
+    // 4. METADATA URI
     const uri =
-      "data:application/json;base64,eyJuYW1lIjoiT0JFUyIsInN5bWJvbCI6Ik9CRVMiLCJkZXNjcmlwdGlvbiI6IkltcHJpbnQgY3JlYXRlZCB3aXRoIE9wZW4gRXhlY3V0aW9uIFN5c3RlbSBieSBOZXRydW4gRm91bmRhdGlvbi4iLCJpbWFnZSI6Imh0dHBzOi8vcGxhY2Vob2xkLmNvLzQwMHg0MDAvdHJhbnNwYXJlbnQvd2hpdGUvcG5nP3RleHQ9T0JFUyUwQTEwMDAmZm9udD1tb250c2VycmF0IiwiYXR0cmlidXRlcyI6W3sidHJhaXRfdHlwZSI6InByb3RvY29sIiwidmFsdWUiOiJuZXRydW4ifSx7InRyYWl0X3R5cGUiOiJ0eXBlIiwidmFsdWUiOiJ0b2tlbi1taW50In0seyJ0cmFpdF90eXBlIjoidG9rZW4iLCJ2YWx1ZSI6IjhZN1BmWU5DbXBaNU4ybXBnY2htSkI4Rjdtb0hHUFM2UU1UbXM2U1RVcXAyIn0seyJ0cmFpdF90eXBlIjoic3ltYm9sIiwidmFsdWUiOiJPQkVTIn0seyJ0cmFpdF90eXBlIjoiYW1vdW50IiwidmFsdWUiOiIxMDAwIn1dfQ==";
+      "data:application/json;base64,eyJuYW1lIjoiT0JFUyIsInN5bWJvbCI6Ik9CRVMiLCJkZXNjcmlwdGlvbiI6IkltcHJpbnQgY3JlYXRlZCB3aXRoIE9wZW4gRXhlY3V0aW9uIFN5c3RlbSBieSBOZXRydW4gRm91bmRhdGlvbi4iLCJpbWFnZSI6Imh0dHBzOi8vcGxhY2Vob2xkLmNvLzQwMHg0MDAvdHHJwmentIiwiYXR0cmlidXRlcyI6W3sidHJhaXRfdHlwZSI6InByb3RvY29sIiwidmFsdWUiOiJuZXRydW4ifSx7InRyYWl0X3R5cGUiOiJ0eXBlIiwidmFsdWUiOiJ0b2tlbi1taW50In0seyJ0cmFpdF90eXBlIjoidG9rZW4iLCJ2YWx1ZSI6IjhZN1BmWU5DbXBaNU4ybXBnY2htSkI4Rjdtb0hHUFM2UU1UbXM2U1RVcXAyIn0seyJ0cmFpdF90eXBlIjoic3ltYm9sIiwidmFsdWUiOiJPQkVTIn0seyJ0cmFpdF90eXBlIjoiYW1vdW50IiwidmFsdWUiOiIxMDAwIn1dfQ==";
 
-    // 5. BUILD ALL INSTRUCTIONS (one TX)
+    // 5. BUILD ONE TRANSACTION
     const tx = new Transaction();
 
     // 5.1. Initialize mint
-    // https://docs.solana.com/developing/programming-model/transactions
-    const createMintIx = createInitializeMint2Instruction(
-      mintPubkey,
-      9,           // decimals
-      payer.publicKey,
-      null,        // freezeAuthority = null
-      TOKEN_PROGRAM_ID
+    tx.add(
+      createInitializeMint2Instruction(
+        mintPubkey,
+        9,
+        payer.publicKey,
+        null,
+        TOKEN_PROGRAM_ID
+      )
     );
-    tx.add(createMintIx);
 
-    // 5.2. Mint tokens to ATA
-    const mintToIx = mintTo(
-      TOKEN_PROGRAM_ID,
-      mintPubkey,
-      tokenAccount.address,
-      payer.publicKey,
-      payer,
-      1000 * 10 ** 9
+    // 5.2. CREATE ASSOCIATED TOKEN ACCOUNT FOR PAYER (same TX)
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        ata,
+        payer.publicKey,
+        mintPubkey,
+        TOKEN_PROGRAM_ID
+      )
     );
-    tx.add(mintToIx);
 
-    // 5.3. Create metadata account
+    // 5.3. Mint tokens to ATA
+    tx.add(
+      mintTo(
+        TOKEN_PROGRAM_ID,
+        mintPubkey,
+        ata,
+        payer.publicKey,
+        payer.publicKey,
+        1000 * 10 ** 9
+      )
+    );
+
+    // 5.4. Create metadata account
     const metadataIx = createCreateMetadataAccountV3Instruction(
       {
         metadata: metadataPDA,
@@ -144,22 +151,19 @@ console.log("Wallet:", payer.publicKey.toBase58());
     );
     tx.add(metadataIx);
 
-    // 6. SIGN WITH ALL REQUIRED KEYS
+    // 6. SIGN + SEND
     tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
     tx.feePayer = payer.publicKey;
+    tx.sign(payer, mint);
 
-    // sign the mint key (for createInitializeMint2)
-    tx.sign(payer, mint); // `mint` is the Keypair for the mint account
-
-    // 7. SEND IN ONE TRANSACTION
     const sig = await sendAndConfirmTransaction(connection, tx, [payer, mint], {
       commitment: "confirmed",
     });
 
     console.log("Mint pubkey:", mintPubkey.toBase58());
-    console.log("ATA:", tokenAccount.address.toBase58());
+    console.log("ATA:", ata.toBase58());
     console.log("Metadata PDA:", metadataPDA.toBase58());
-    console.log("TX in one go ✅:", sig);
+    console.log("One-TX ✅", sig);
   } catch (err) {
     console.error("ERROR:", err.message || err);
   }
