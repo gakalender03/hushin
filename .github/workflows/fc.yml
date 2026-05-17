@@ -1,33 +1,66 @@
-name: fc.js
+name: List Netrun Modules
 
 on:
- # push:
-  #  branches:
-   #   - main  # Trigger this action on push to the public repo's main branch
   workflow_dispatch:
+
 jobs:
-  run-script:
+  list-modules:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout public repo
-      uses: actions/checkout@v5  # This checks out the public repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    
-    - name: Set up Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '20.20.2'  # Set your required Node.js version
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    - name: Install dependencies (if any)
-      run: npm install @cosmjs/proto-signing
-           npm install axios-cookiejar-support tough-cookie
-  # Install dependencies if needed
+      - name: Create package.json
+        run: |
+          cat > package.json <<EOF
+          {
+            "type": "module"
+          }
+          EOF
 
-    - name: Run Node.js script from private repo
-      env:
-           DELAY_MINUTES: 1
-         # RPC_URL: ${{ secrets.RPC_URL }}
-         # PRIVATE_KEYS: ${{ secrets.PRIVATE_KEYS }}
-      run: node fc.js  # Run the script from the private repo
-      continue-on-error: true
+      - name: Install dependencies
+        run: |
+          npm install @netrun/sdk
+
+      - name: Create script
+        run: |
+          cat > list-modules.js <<'EOF'
+          import { Netrun } from '@netrun/sdk';
+
+          const netrun = new Netrun({
+            network: 'devnet'
+          });
+
+          async function main() {
+            try {
+              const modules =
+                await netrun.modules.list();
+
+              console.log(
+                JSON.stringify(
+                  modules,
+                  null,
+                  2
+                )
+              );
+            } catch (err) {
+              console.error(
+                'Failed to fetch modules:',
+                err
+              );
+              process.exit(1);
+            }
+          }
+
+          main();
+          EOF
+
+      - name: Run script
+        run: |
+          node list-modules.js
