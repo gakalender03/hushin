@@ -9,7 +9,7 @@ const {
   mintTo
 } = require("@solana/spl-token");
 
-const bs58 = require("bs58");
+const bs58 = require("bs58").default;
 
 (async () => {
   const connection = new Connection(process.env.SOLANA_RPC, "confirmed");
