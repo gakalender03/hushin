@@ -16,7 +16,7 @@ const {
 
 const {
   createCreateMetadataAccountV3Instruction,
-  PROGRAM_ID as METADATA_PROGRAM_ID,
+  PROGRAM_ID,
 } = require("@metaplex-foundation/mpl-token-metadata");
 
 const bs58 = require("bs58");
