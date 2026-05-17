@@ -1,4 +1,4 @@
-name: Deploy Metaplex Core Asset (BIOH3 Dynamic)
+name: Deploy BIOH3 Token + Mint 10 Supply
 
 on:
   workflow_dispatch:
@@ -16,101 +16,114 @@ jobs:
       - name: Install dependencies
         run: |
           npm init -y
-          npm install @solana/web3.js @metaplex-foundation/js bs58
+          npm install @solana/web3.js @solana/spl-token @metaplex-foundation/js bs58
 
-      - name: Generate + Deploy Core Asset (CreateV2)
+      - name: Deploy Token + Mint 10
         env:
           SOLANA_PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
           SOLANA_RPC: https://api.devnet.solana.com
         run: |
           node -e "
           const crypto = require('crypto');
-          const bs58 = require('bs58');
+          const { Connection, Keypair, clusterApiUrl } = require('@solana/web3.js');
           const {
-            Connection,
-            Keypair,
-            clusterApiUrl
-          } = require('@solana/web3.js');
+            createMint,
+            getOrCreateAssociatedTokenAccount,
+            mintTo
+          } = require('@solana/spl-token');
 
-          const {
-            Metaplex,
-            keypairIdentity
-          } = require('@metaplex-foundation/js');
+          const { Metaplex, keypairIdentity } = require('@metaplex-foundation/js');
+          const { decode } = require('bs58');
 
-          // -----------------------------
-          // 1. UNIQUE NAME GENERATOR
-          // -----------------------------
+          // -------------------------
+          // UNIQUE NAME
+          // -------------------------
           const rand = crypto.randomBytes(3).toString('hex');
           const name = \`BIOH3-\${rand}\`;
           const symbol = \`B3\${rand.toUpperCase()}\`;
 
-          // -----------------------------
-          // 2. WALLET
-          // -----------------------------
-          const secret = Uint8Array.from(
-          bs58.default.decode(process.env.SOLANA_PRIVATE_KEY)
-          );
-          const keypair = Keypair.fromSecretKey(secret);
+          // -------------------------
+          // WALLET
+          // -------------------------
+          const secret = Uint8Array.from(decode(process.env.SOLANA_PRIVATE_KEY));
+          const payer = Keypair.fromSecretKey(secret);
 
-          // -----------------------------
-          // 3. CONNECTION
-          // -----------------------------
+          // -------------------------
+          // CONNECTION
+          // -------------------------
           const connection = new Connection(
-            process.env.SOLANA_RPC || clusterApiUrl('devnet')
+            process.env.SOLANA_RPC || clusterApiUrl('devnet'),
+            'confirmed'
           );
 
-          const metaplex = Metaplex
-            .make(connection)
-            .use(keypairIdentity(keypair));
+          const metaplex = Metaplex.make(connection).use(keypairIdentity(payer));
 
-          // -----------------------------
-          // 4. METADATA (Core-style object)
-          // -----------------------------
-          const metadata = {
-            name,
-            symbol,
-            description: 'BIOH3 Core Asset created via CreateV2 pipeline',
-            image: \`https://placehold.co/400x400/png?text=\${encodeURIComponent(name)}\`,
-            attributes: [
-              { trait_type: 'protocol', value: 'metaplex-core' },
-              { trait_type: 'type', value: 'create-v2' },
-              { trait_type: 'system', value: 'BIOH3' }
-            ]
-          };
-
-          console.log('Creating Core Asset...');
-          console.log({ name, symbol });
-
-          // -----------------------------
-          // 5. CREATE CORE ASSET (CreateV2)
-          // -----------------------------
           (async () => {
-            try {
-              // Upload metadata (still uses Metaplex storage abstraction)
-              const { uri } = await metaplex.nfts().uploadMetadata(metadata);
+            console.log('Creating SPL Mint...');
 
-              console.log('Metadata URI:', uri);
+            // -------------------------
+            // 1. CREATE TOKEN MINT
+            // -------------------------
+            const mint = await createMint(
+              connection,
+              payer,
+              payer.publicKey,
+              null,
+              9 // decimals
+            );
 
-              // CREATE CORE ASSET via CreateV2-style flow
-              // NOTE: Metaplex JS uses Core internally depending on version
-              const result = await metaplex.nfts().create({
-                uri,
-                name,
-                symbol,
-                sellerFeeBasisPoints: 0,
-                isMutable: true
-              });
+            console.log('Mint Address:', mint.toBase58());
 
-              console.log('============================');
-              console.log('✅ CORE ASSET CREATED');
-              console.log('Mint:', result.nft.address.toBase58());
-              console.log('Name:', name);
-              console.log('Symbol:', symbol);
-              console.log('============================');
+            // -------------------------
+            // 2. CREATE TOKEN ACCOUNT
+            // -------------------------
+            const tokenAccount = await getOrCreateAssociatedTokenAccount(
+              connection,
+              payer,
+              mint,
+              payer.publicKey
+            );
 
-            } catch (e) {
-              console.error('❌ Error:', e);
-              process.exit(1);
-            }
+            // -------------------------
+            // 3. MINT EXACTLY 10 TOKENS
+            // -------------------------
+            const amount = 10 * (10 ** 9); // 10 tokens with 9 decimals
+
+            await mintTo(
+              connection,
+              payer,
+              mint,
+              tokenAccount.address,
+              payer,
+              amount
+            );
+
+            console.log('✅ Minted 10 tokens');
+
+            // -------------------------
+            // 4. METADATA (Metaplex)
+            // -------------------------
+            const metadata = {
+              name,
+              symbol,
+              description: 'BIOH3 SPL Token (auto minted supply 10)',
+              image: \`https://placehold.co/400x400/png?text=\${encodeURIComponent(name)}\`,
+              attributes: [
+                { trait_type: 'type', value: 'spl-token' },
+                { trait_type: 'supply', value: '10' }
+              ]
+            };
+
+            const { uri } = await metaplex.nfts().uploadMetadata(metadata);
+
+            console.log('Metadata URI:', uri);
+
+            console.log('============================');
+            console.log('TOKEN DEPLOYED SUCCESSFULLY');
+            console.log('Name:', name);
+            console.log('Symbol:', symbol);
+            console.log('Mint:', mint.toBase58());
+            console.log('Supply: 10');
+            console.log('============================');
           })();
           "
