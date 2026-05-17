@@ -1,61 +1,77 @@
-name: List Netrun Modules
+name: Deploy Solana Token (Devnet)
 
 on:
   workflow_dispatch:
 
 jobs:
-  list-modules:
+  deploy-token:
     runs-on: ubuntu-latest
 
+    env:
+      SOLANA_NETWORK: devnet
+
+      # Token config
+      TOKEN_DECIMALS: 6
+      TOTAL_SUPPLY: 1000000
+      MINT_LIMIT: 10000
+
+      # Add this in GitHub Secrets
+      # Base58 private key wallet
+      SOLANA_PRIVATE_KEY: ${{ secrets.SOLANA_PRIVATE_KEY }}
+
     steps:
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install dependencies and run script
+      - name: Install Solana CLI
         run: |
-          npm init -y
-          npm install @netrun/sdk
+          sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-          cat > package.json <<EOF
-          {
-            "type": "module"
-          }
-          EOF
+      - name: Install SPL Token CLI
+        run: cargo install spl-token-cli
 
-          cat > index.js <<'EOF'
-          import { Netrun } from '@netrun/sdk';
+      - name: Configure Solana Devnet
+        run: solana config set --url https://api.devnet.solana.com
 
-          const netrun = new Netrun({
-            network: 'devnet'
-          });
+      - name: Setup wallet
+        run: |
+          mkdir -p ~/.config/solana
+          echo "$SOLANA_PRIVATE_KEY" > ~/.config/solana/id.json
+          chmod 600 ~/.config/solana/id.json
 
-          async function main() {
-            try {
-              console.log('Fetching modules...\n');
+      - name: Airdrop Devnet SOL
+        run: |
+          solana airdrop 2 || true
 
-              const modules =
-                await netrun.modules.list();
+      - name: Create Token
+        id: create_token
+        run: |
+          TOKEN_ADDRESS=$(spl-token create-token \
+            --decimals $TOKEN_DECIMALS \
+            | grep "Creating token" \
+            | awk '{print $3}')
 
-              console.log(
-                JSON.stringify(
-                  modules,
-                  null,
-                  2
-                )
-              );
+          echo "TOKEN_ADDRESS=$TOKEN_ADDRESS" >> $GITHUB_ENV
+          echo "Created token: $TOKEN_ADDRESS"
 
-            } catch (err) {
-              console.error(
-                'Failed to fetch modules:',
-                err
-              );
-              process.exit(1);
-            }
-          }
+      - name: Create Token Account
+        run: |
+          spl-token create-account $TOKEN_ADDRESS
 
-          main();
-          EOF
+      - name: Mint Limited Supply
+        run: |
+          MINT_AMOUNT=$TOTAL_SUPPLY
 
-          node index.js
+          if [ "$MINT_AMOUNT" -gt "$MINT_LIMIT" ]; then
+            echo "Mint exceeds MINT_LIMIT"
+            exit 1
+          fi
+
+          spl-token mint $TOKEN_ADDRESS $MINT_AMOUNT
+
+      - name: Show Token Info
+        run: |
+          echo "Token Address: $TOKEN_ADDRESS"
+          spl-token supply $TOKEN_ADDRESS
+          spl-token display $TOKEN_ADDRESS
