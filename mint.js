@@ -1,46 +1,38 @@
 const {
   Connection,
-  Keypair,
+  Keypair
 } = require("@solana/web3.js");
 
 const {
-  createMint,
   getOrCreateAssociatedTokenAccount,
   mintTo
 } = require("@solana/spl-token");
 
 const bs58 = require("bs58");
 
-(async () => {
-  const connection = new Connection(process.env.SOLANA_RPC, "confirmed");
+const MINT_ADDRESS = "8Y7PfYNCmpZ5N2mpgchmJB8F7moHGPS6QMTms6STUqp2";
 
-  // ✅ BASE58 PRIVATE KEY SUPPORT
- 
+(async () => {
+  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+
+  // wallet (must be mint authority)
   const secretKey = bs58.decode(process.env.PRIVATE_KEY);
   const payer = Keypair.fromSecretKey(secretKey);
 
   console.log("Wallet:", payer.publicKey.toBase58());
 
-  // 1. create mint
-  const mint = await createMint(
-    connection,
-    payer,
-    payer.publicKey,
-    null,
-    9
-  );
+  const mint = MINT_ADDRESS;
 
-  console.log("Mint created:", mint.toBase58());
+  // recipient = your wallet (change if needed)
+  const recipient = payer.publicKey;
 
-  // 2. token account
   const tokenAccount = await getOrCreateAssociatedTokenAccount(
     connection,
     payer,
     mint,
-    payer.publicKey
+    recipient
   );
 
-  // 3. mint tokens
   const amount = 1000 * 10 ** 9;
 
   await mintTo(
@@ -52,5 +44,5 @@ const bs58 = require("bs58");
     amount
   );
 
-  console.log("Minted 1000 OBES-style tokens");
+  console.log("Minted into existing token:", mint);
 })();
