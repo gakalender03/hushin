@@ -1,0 +1,35 @@
+name: Solana Pubkey
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pubkey:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install solders
+        run: |
+          python -m pip install --upgrade pip
+          pip install solders
+
+      - name: Derive public key
+        env:
+          SOLANA_PRIVATE_KEY_B58: ${{ secrets.SOLANA_PRIVATE_KEY_B58 }}
+        run: |
+          python - <<'PY'
+          import os
+          from solders.keypair import Keypair
+
+          b58_string = os.environ["SOLANA_PRIVATE_KEY_B58"]
+          keypair = Keypair.from_base58_string(b58_string)
+          print(keypair.pubkey())
+          PY
