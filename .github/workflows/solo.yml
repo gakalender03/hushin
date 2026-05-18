@@ -29,7 +29,13 @@ jobs:
           import os
           from solders.keypair import Keypair
 
+          from base58 import b58decode
+
           b58_string = os.environ["SOLANA_PRIVATE_KEY_B58"]
-          keypair = Keypair.from_base58_string(b58_string)
-          print(keypair.pubkey())
+          # Decode base58 to bytes
+          secret_bytes = b58decode(b58_string)
+          # Transform to uint8 array (list of integers) for keypair.json
+          arr = list(secret_bytes)
+          print("JSON‑compatible keypair array (copy this into keypair.json):")
+          print(arr)
           PY
