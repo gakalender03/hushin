@@ -1,0 +1,70 @@
+name: Recover Burns Runner
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 */6 * * *'  # Run every 6 hours
+  workflow_dispatch:
+
+jobs:
+  recover-burns:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run recover burns script
+        env:
+          CSRFToken: ${{ secrets.CSRFTOKEN }}
+          SESSIONID: ${{ secrets.SESSIONID }}
+        run: |
+          cat > recover_burns.py << 'EOF'
+          import requests
+          import os
+
+          cookies = {
+              'csrftoken': os.environ.get('CSRFToken', 'H0d7nZ2TXvnm9zeiVseYYIjJfRnHD7kd'),
+              'sessionid': os.environ.get('SESSIONID', 'dgy2cf05blt8xus3kbpy65pb7f6w7qfc'),
+          }
+
+          headers = {
+              'Accept': '*/*',
+              'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+              'Origin': 'https://inception.dachain.io',
+              'Referer': 'https://inception.dachain.io/exchange',
+              'Sec-Fetch-Dest': 'empty',
+              'Sec-Fetch-Mode': 'cors',
+              'Sec-Fetch-Site': 'same-origin',
+              'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+              'X-CSRFToken': os.environ.get('CSRFToken', 'H0d7nZ2TXvnm9zeiVseYYIjJfRnHD7kd'),
+              'sec-ch-ua': '"Not-A.Brand";v="99", "Chromium";v="124"',
+              'sec-ch-ua-mobile': '?1',
+              'sec-ch-ua-platform': '"Android"',
+          }
+
+          json_data = {}
+
+          response = requests.post(
+              'https://inception.dachain.io/api/inception/exchange/recover-burns/',
+              cookies=cookies,
+              headers=headers,
+              json=json_data,
+          )
+
+          print(f"Status Code: {response.status_code}")
+          print(f"Response: {response.text}")
+          EOF
+
+          python recover_burns.py
