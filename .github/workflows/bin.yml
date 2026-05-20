@@ -1,0 +1,65 @@
+name: Faucet Runner
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *" # setiap 1 jam UTC
+
+jobs:
+  faucet:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        wallet:
+          - "0x14ab4EB8ec77728AdE985C9873fc9E5cad867292"
+
+    steps:
+      - name: Request Faucet
+        shell: bash
+        run: |
+          set -e
+
+          BASE_URL="https://inception.dachain.io"
+          API_URL="$BASE_URL/api/inception/faucet/"
+          WALLET="${{ matrix.wallet }}"
+          COOKIE_JAR="$(mktemp)"
+
+          echo "Wallet: $WALLET"
+
+          # 1. Get CSRF cookie
+          curl -s \
+            -c "$COOKIE_JAR" \
+            -A "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36" \
+            "$BASE_URL/faucet" > /dev/null
+
+          # 2. Extract csrf token
+          CSRF_TOKEN=$(awk '$6 == "csrftoken" {print $7}' "$COOKIE_JAR")
+
+          if [ -z "$CSRF_TOKEN" ]; then
+            echo "Failed to get CSRF token"
+            cat "$COOKIE_JAR"
+            exit 1
+          fi
+
+          echo "CSRF token acquired"
+
+          # 3. Request faucet
+          RESPONSE=$(curl -s \
+            -X POST "$API_URL" \
+            -b "$COOKIE_JAR" \
+            -c "$COOKIE_JAR" \
+            -H "Content-Type: application/json" \
+            -H "Origin: $BASE_URL" \
+            -H "Referer: $BASE_URL/faucet" \
+            -H "X-CSRFToken: $CSRF_TOKEN" \
+            -H "User-Agent: Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36" \
+            --data-raw "{
+              \"id\": 4,
+              \"jsonrpc\": \"2.0\",
+              \"method\": \"faucet_request\",
+              \"params\": [\"$WALLET\"]
+            }")
+
+          echo "Response:"
+          echo "$RESPONSE"
