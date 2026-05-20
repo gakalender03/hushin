@@ -2,64 +2,51 @@ name: Faucet Runner
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 * * * *" # setiap 1 jam UTC
 
 jobs:
   faucet:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        wallet:
-          - "0x14ab4EB8ec77728AdE985C9873fc9E5cad867292"
-
     steps:
-      - name: Request Faucet
+      - name: Test Faucet
         shell: bash
         run: |
-          set -e
+          set -x
 
           BASE_URL="https://inception.dachain.io"
           API_URL="$BASE_URL/api/inception/faucet/"
-          WALLET="${{ matrix.wallet }}"
-          COOKIE_JAR="$(mktemp)"
+          WALLET="0x14ab4EB8ec77728AdE985C9873fc9E5cad867292"
 
-          echo "Wallet: $WALLET"
+          echo "=== STEP 1: Get faucet page ==="
 
-          # 1. Get CSRF cookie
-          curl -s \
-            -c "$COOKIE_JAR" \
-            -A "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36" \
-            "$BASE_URL/faucet" > /dev/null
+          HTML=$(curl -L -s \
+            -H "User-Agent: Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36" \
+            -H "Referer: $BASE_URL/faucet" \
+            -H "Origin: $BASE_URL" \
+            -D - \
+            "$BASE_URL/faucet")
 
-          # 2. Extract csrf token
-          CSRF_TOKEN=$(awk '$6 == "csrftoken" {print $7}' "$COOKIE_JAR")
+          echo "=== HTML RESPONSE ==="
+          echo "$HTML" | head -100
 
-          if [ -z "$CSRF_TOKEN" ]; then
-            echo "Failed to get CSRF token"
-            cat "$COOKIE_JAR"
-            exit 1
-          fi
+          echo "=== STEP 2: Try extract csrf token ==="
 
-          echo "CSRF token acquired"
+          CSRF_TOKEN=$(echo "$HTML" | grep -oP 'csrf[a-zA-Z0-9_-]*["'\'']?\s*[:=]\s*["'\'']\K[^"'\'']+' | head -1)
 
-          # 3. Request faucet
-          RESPONSE=$(curl -s \
+          echo "CSRF_TOKEN=$CSRF_TOKEN"
+
+          echo "=== STEP 3: Request faucet ==="
+
+          curl -v \
             -X POST "$API_URL" \
-            -b "$COOKIE_JAR" \
-            -c "$COOKIE_JAR" \
             -H "Content-Type: application/json" \
             -H "Origin: $BASE_URL" \
             -H "Referer: $BASE_URL/faucet" \
-            -H "X-CSRFToken: $CSRF_TOKEN" \
             -H "User-Agent: Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36" \
+            -H "X-CSRFToken: $CSRF_TOKEN" \
             --data-raw "{
               \"id\": 4,
               \"jsonrpc\": \"2.0\",
               \"method\": \"faucet_request\",
               \"params\": [\"$WALLET\"]
-            }")
-
-          echo "Response:"
-          echo "$RESPONSE"
+            }"
