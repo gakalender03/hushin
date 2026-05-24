@@ -33,7 +33,7 @@ jobs:
 
           TARGET_ADDRESS = (
               Web3.to_checksum_address(
-                  '0x77bdf62f3ab04f0faa76ff7ca2e4794c202f7594'
+                  '0x1f4f17d37DbFa84C75Ca93C609086Bb0910Cd7E6'
               )
           )
 
