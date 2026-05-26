@@ -85,9 +85,7 @@ print(f'Found {len(valid_keys)} valid keys')
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     results = list(executor.map(send_from_key, valid_keys))
 
-print('
-Results:
-')
+print('Results: ')
 
 for result in results:
     print(result)
