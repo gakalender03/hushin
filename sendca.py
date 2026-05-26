@@ -1,4 +1,3 @@
-python3 << 'EOF'
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from web3 import Web3
@@ -91,4 +90,4 @@ for result in results:
     print(result)
 
 print('All transactions submitted!')
-EOF
+
