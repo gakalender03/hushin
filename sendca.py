@@ -90,6 +90,5 @@ print('Results: ')
 for result in results:
     print(result)
 
-print('
-All transactions submitted!')
+print('All transactions submitted!')
 EOF
