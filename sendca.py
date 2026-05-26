@@ -4,205 +4,94 @@ from threading import Lock
 from web3 import Web3
 import os
 
-          # =========================
-          # CONFIG
-          # =========================
 
-          RPC_URL = (
-              'https://rpctest.dachain.tech'
-          )
 
-          TARGET_ADDRESS = (
-              Web3.to_checksum_address(
-                  '0x3691A78bE270dB1f3b1a86177A8f23F89A8Cef24'
-              )
-          )
+# =========================
+# CONFIG
+# =========================
 
-          # Contract calldata hex
-          HEX_DATA = (
-              '0x4a5d094b'
-          )
+RPC_URL = 'https://rpctest.dachain.tech'
 
-          # Amount of native token
-          # set 0 if not needed
-          AMOUNT_ETH = 1
+TARGET_ADDRESS = Web3.to_checksum_address('0x3691A78bE270dB1f3b1a86177A8f23F89A8Cef24')
 
-          # FIXED GAS SETTINGS
-          GAS_LIMIT = 100000
-          GAS_PRICE_GWEI = 5
+HEX_DATA = '0x4a5d094b'
 
-          MAX_WORKERS = 5
-          CHAIN_ID = 21894
+AMOUNT_ETH = 1
 
-          # =========================
-          # SETUP
-          # =========================
+GAS_LIMIT = 5
+GAS_PRICE_GWEI = 100000
 
-          PRIVATE_KEYS = os.environ.get(
-              'PRIVATE_KEYS', ''
-          ).splitlines()
+MAX_WORKERS = 5
+CHAIN_ID = 21894
 
-          w3 = Web3(
-              Web3.HTTPProvider(
-                  RPC_URL
-              )
-          )
+# =========================
+# SETUP
+# =========================
 
-          nonce_lock = Lock()
-          nonce_map = {}
+PRIVATE_KEYS = os.environ.get('PRIVATE_KEYS', '').splitlines()
 
-          def get_unique_nonce(
-              address
-          ):
-              with nonce_lock:
+w3 = Web3(Web3.HTTPProvider(RPC_URL))
 
-                  if (
-                      address
-                      not in nonce_map
-                  ):
-                      nonce_map[
-                          address
-                      ] = (
-                          w3.eth
-                          .get_transaction_count(
-                              address,
-                              'pending'
-                          )
-                      )
+nonce_lock = Lock()
+nonce_map = {}
 
-                  nonce = (
-                      nonce_map[
-                          address
-                      ]
-                  )
+def get_unique_nonce(address):
+    with nonce_lock:
+        if address not in nonce_map:
+            nonce_map[address] = w3.eth.get_transaction_count(address, 'pending')
 
-                  nonce_map[
-                      address
-                  ] += 1
+        nonce = nonce_map[address]
+        nonce_map[address] += 1
+        return nonce
 
-                  return nonce
+def send_from_key(pk):
+    try:
+        pk = pk.strip()
 
-          def send_from_key(pk):
-              try:
-                  pk = pk.strip()
+        if not pk or len(pk) < 64:
+            return 'Skipped invalid key'
 
-                  if (
-                      not pk
-                      or len(pk) < 64
-                  ):
-                      return (
-                          'Skipped '
-                          'invalid key'
-                      )
+        account = w3.eth.account.from_key(pk)
+        nonce = get_unique_nonce(account.address)
 
-                  account = (
-                      w3.eth.account
-                      .from_key(pk)
-                  )
+        tx = {
+            'nonce': nonce,
+            'to': TARGET_ADDRESS,
+            'value': w3.to_wei(AMOUNT_ETH, 'ether'),
+            'gas': GAS_LIMIT,
+            'gasPrice': w3.to_wei(GAS_PRICE_GWEI, 'gwei'),
+            'data': HEX_DATA,
+            'chainId': CHAIN_ID,
+        }
 
-                  nonce = (
-                      get_unique_nonce(
-                          account.address
-                      )
-                  )
+        signed = account.sign_transaction(tx)
 
-                  tx = {
-                      'nonce': nonce,
-                      'to': (
-                          TARGET_ADDRESS
-                      ),
-                      'value': (
-                          w3.to_wei(
-                              AMOUNT_ETH,
-                              'ether'
-                          )
-                      ),
-                      'gas': (
-                          GAS_LIMIT
-                      ),
-                      'gasPrice': (
-                          w3.to_wei(
-                              GAS_PRICE_GWEI,
-                              'gwei'
-                          )
-                      ),
-                      'data': (
-                          HEX_DATA
-                      ),
-                      'chainId': (
-                          CHAIN_ID
-                      )
-                  }
+        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
 
-                  signed = (
-                      account
-                      .sign_transaction(tx)
-                  )
+        return (
+            f'Sent | {account.address[:10]}... '
+            f'nonce={nonce} gas={GAS_LIMIT} tx={tx_hash.hex()}'
+        )
 
-                  tx_hash = (
-                      w3.eth
-                      .send_raw_transaction(
-                          signed.raw_transaction
-                      )
-                  )
+    except Exception as e:
+        return f'Error: {str(e)}'
 
-                  return (
-                      f'Sent | '
-                      f'{account.address[:10]}... '
-                      f'nonce={nonce} '
-                      f'gas={GAS_LIMIT} '
-                      f'tx='
-                      f'{tx_hash.hex()}'
-                  )
+print('Starting parallel contract transfers...')
 
-              except Exception as e:
-                  return (
-                      f'Error: '
-                      f'{str(e)}'
-                  )
+valid_keys = [k for k in PRIVATE_KEYS if k.strip()]
 
-          print(
-              'Starting '
-              'parallel '
-              'contract '
-              'transfers...'
-          )
+print(f'Found {len(valid_keys)} valid keys')
 
-          valid_keys = [
-              k for k
-              in PRIVATE_KEYS
-              if k.strip()
-          ]
+with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    results = list(executor.map(send_from_key, valid_keys))
 
-          print(
-              f'Found '
-              f'{len(valid_keys)} '
-              f'valid keys'
-          )
+print('
+Results:
+')
 
-          with ThreadPoolExecutor(
-              max_workers=
-              MAX_WORKERS
-          ) as executor:
+for result in results:
+    print(result)
 
-              results = list(
-                  executor.map(
-                      send_from_key,
-                      valid_keys
-                  )
-              )
-
-          print(
-              '\nResults:\n'
-          )
-
-          for result in results:
-              print(result)
-
-          print(
-              '\nAll '
-              'transactions '
-              'submitted!'
-          )
-
-          EOF
+print('
+All transactions submitted!')
+EOF
