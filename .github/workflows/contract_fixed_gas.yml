@@ -2,6 +2,8 @@ name: Contract Transfers
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/1 * * * *'
 
 jobs:
   transfer:
