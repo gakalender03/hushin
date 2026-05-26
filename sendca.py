@@ -1,8 +1,8 @@
 python3 << 'EOF'
-          from concurrent.futures import ThreadPoolExecutor
-          from threading import Lock
-          from web3 import Web3
-          import os
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
+from web3 import Web3
+import os
 
           # =========================
           # CONFIG
