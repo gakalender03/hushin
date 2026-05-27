@@ -50,7 +50,7 @@ jobs:
 
           # Amount of native token
           # set 0 if not needed
-          AMOUNT_ETH = 384.9
+          AMOUNT_ETH = 355.9
 
           # FIXED GAS SETTINGS
           GAS_LIMIT = 100000
